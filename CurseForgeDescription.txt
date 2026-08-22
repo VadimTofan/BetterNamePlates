@@ -1,0 +1,47 @@
+BetterNamePlates
+
+BetterNamePlates is a lightweight, opinionated nameplate addon for World of Warcraft Retail. It delivers a clean, Mythic+-focused presentation without the configuration menus, scripting systems, and additional features found in larger nameplate addons.
+
+The addon comes with one carefully designed profile. There are no settings to configure—install it, enable it, and play.
+
+Features
+
+- Clean enemy and friendly nameplates
+- Role-aware threat coloring for tanks, healers, and damage dealers
+- Distinct caster, lieutenant, rare-elite, and boss colors
+- Interrupt-aware castbars
+- Yellow interruptible casts
+- Orange uninterruptible or currently unavailable casts
+- Green marker showing when your interrupt becomes available during a cast
+- Spell icons and remaining cast time
+- Target border with directional arrows
+- Border-only mouseover highlighting
+- Player-owned debuff icons with duration timers
+- Automatic filtering of unhelpful passive effects
+- Vertically stacked nameplates for crowded pulls
+- Works in Mythic+, raids, outdoor content, and other supported areas
+- No configuration interface or saved profile management
+
+Getting Started
+
+1. Install BetterNamePlates.
+2. Enable it from the character selection AddOns menu.
+3. Enter the game and use /reload if necessary.
+4. Ensure enemy nameplates are enabled with the default V keybind.
+
+Use /bnp debug to display basic runtime and nameplate-layout diagnostics.
+
+Design Philosophy
+
+BetterNamePlates is intentionally not a general-purpose nameplate framework. It provides one fixed visual and gameplay profile designed for clear combat information with minimal overhead.
+
+If you like the profile, use it. If you want extensive customization, another nameplate addon may suit you better.
+
+Status and Support
+
+BetterNamePlates is under active development for current World of Warcraft Retail content.
+
+Report bugs or request improvements:
+https://github.com/VadimTofan/BetterNamePlates/issues
+
+Maintained by VadimTofan.

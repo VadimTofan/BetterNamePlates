@@ -9,6 +9,7 @@ local DisplayText = namespace.DisplayText
 local FrameLayout = namespace.FrameLayout
 local HealthFormat = namespace.HealthFormat
 local Interrupts = namespace.Interrupts
+local NameplateStacking = namespace.NameplateStacking
 local NpcClassification = namespace.NpcClassification
 local Rules = namespace.Rules
 local TargetIndicator = namespace.TargetIndicator
@@ -30,9 +31,9 @@ local function setTextureColor(texture, color)
     texture:SetColorTexture(color[1], color[2], color[3], color[4])
 end
 
-local function createBorder(frame)
-    local thickness = Config.borderThickness
-    local color = Config.colors.border
+local function createBorder(frame, thickness, color)
+    thickness = thickness or Config.borderThickness
+    color = color or Config.colors.border
 
     for _, edge in ipairs({"TOP", "BOTTOM", "LEFT", "RIGHT"}) do
         local border = frame:CreateTexture(nil, "OVERLAY")
@@ -50,29 +51,24 @@ local function createBorder(frame)
     end
 end
 
-local function createTargetIndicator(healthBar)
+local function createSelectionBorder(healthBar)
     local indicator = CreateFrame("Frame", nil, healthBar)
-    local thickness = Config.targetBorderThickness
-    local color = Config.colors.target
 
     indicator:SetAllPoints(healthBar)
     indicator:SetFrameLevel(healthBar:GetFrameLevel() + 3)
+    createBorder(
+        indicator,
+        Config.targetBorderThickness,
+        Config.colors.target
+    )
+    indicator:Hide()
 
-    for _, edge in ipairs({"TOP", "BOTTOM", "LEFT", "RIGHT"}) do
-        local border = indicator:CreateTexture(nil, "OVERLAY")
+    return indicator
+end
 
-        border:SetColorTexture(color[1], color[2], color[3], color[4])
-
-        if edge == "TOP" or edge == "BOTTOM" then
-            border:SetHeight(thickness)
-            border:SetPoint(edge .. "LEFT", indicator, edge .. "LEFT")
-            border:SetPoint(edge .. "RIGHT", indicator, edge .. "RIGHT")
-        else
-            border:SetWidth(thickness)
-            border:SetPoint("TOP" .. edge, indicator, "TOP" .. edge)
-            border:SetPoint("BOTTOM" .. edge, indicator, "BOTTOM" .. edge)
-        end
-    end
+local function createTargetIndicator(healthBar)
+    local indicator = createSelectionBorder(healthBar)
+    local color = Config.colors.target
 
     local arrowLayout = TargetIndicator:GetArrowLayout(
         Config.healthHeight,
@@ -120,8 +116,6 @@ local function createTargetIndicator(healthBar)
         arrowAnchors.right.x,
         0
     )
-    indicator:Hide()
-
     return indicator
 end
 
@@ -141,7 +135,7 @@ local function createPlateView(basePlate)
     end
     view:SetScale(Config.scale)
     view:SetSize(Config.healthWidth, Config.healthHeight + Config.castHeight)
-    view:SetPoint("CENTER", basePlate, "CENTER", 0, 0)
+    view:SetPoint("CENTER", basePlate, "CENTER", 0, Config.plateOffsetY)
 
     view.health = CreateFrame("StatusBar", nil, view)
     view.health:SetSize(Config.healthWidth, Config.healthHeight)
@@ -158,6 +152,7 @@ local function createPlateView(basePlate)
         Config.colors.background[4]
     )
     view.targetIndicator = createTargetIndicator(view.health)
+    view.hoverIndicator = createSelectionBorder(view.health)
 
     view.name = view.health:CreateFontString(nil, "OVERLAY")
     view.name:SetFont(
@@ -632,10 +627,18 @@ local function updateCastVisual(view, duration, cooldown)
     view.interruptMarkerFrame:Show()
 end
 
-function Runtime:RefreshCastCooldowns()
+function Runtime:RefreshCastCooldowns(refreshMarkers)
     for _, view in pairs(self.activePlates) do
         if view.cast:IsShown() and view.castDuration then
             view.interruptCooldown = self:GetInterruptCooldown()
+
+            if refreshMarkers and view.interruptCooldown then
+                CastDuration:PlaceCooldownMarker(
+                    view.interruptMarkerTrack,
+                    view.castDuration:GetTotalDuration(),
+                    view.interruptCooldown
+                )
+            end
 
             updateCastVisual(
                 view,
@@ -867,14 +870,11 @@ function Runtime:AddPlate(unit)
     end
 
     self.activePlates[unit] = view
+    NameplateStacking:ApplyBounds(basePlate, view)
     createNativeAuraContainer(view, unit)
     self.lastAddResult = "added:" .. tostring(unit)
-    local isTarget = DisplayText:SafeValue(
-        UnitIsUnit(unit, "target"),
-        false
-    )
 
-    view.targetIndicator:SetShown(TargetIndicator:ShouldShow(isTarget))
+    self:UpdateSelectionIndicators()
     self:UpdateHealth(unit)
     self:UpdateCast(unit)
     self:UpdateAuras(unit)
@@ -891,6 +891,44 @@ function Runtime:GetDebugState()
         activePlateCount = activePlateCount,
         lastAddResult = self.lastAddResult or "none",
     }
+end
+
+function Runtime:UpdateSelectionIndicators()
+    for plateUnit, view in pairs(self.activePlates) do
+        local isTarget = DisplayText:SafeValue(
+            UnitIsUnit(plateUnit, "target"),
+            false
+        )
+        local isMouseover = DisplayText:SafeValue(
+            UnitIsUnit(plateUnit, "mouseover"),
+            false
+        )
+
+        view:SetAlpha(Appearance:GetTargetAlpha(isTarget))
+        view.targetIndicator:SetShown(
+            TargetIndicator:ShouldShow(isTarget)
+        )
+        view.hoverIndicator:SetShown(
+            TargetIndicator:ShouldShowHover(isMouseover, isTarget)
+        )
+    end
+end
+
+function Runtime:UpdateHoverIndicators()
+    for plateUnit, view in pairs(self.activePlates) do
+        local isTarget = DisplayText:SafeValue(
+            UnitIsUnit(plateUnit, "target"),
+            false
+        )
+        local isMouseover = DisplayText:SafeValue(
+            UnitIsUnit(plateUnit, "mouseover"),
+            false
+        )
+
+        view.hoverIndicator:SetShown(
+            TargetIndicator:ShouldShowHover(isMouseover, isTarget)
+        )
+    end
 end
 
 function Runtime:RemovePlate(unit)
@@ -914,7 +952,15 @@ function Runtime:RemovePlate(unit)
     self.activePlates[unit] = nil
 end
 
-function Runtime:OnUpdate()
+function Runtime:OnUpdate(elapsed)
+    self.hoverRefreshElapsed = (self.hoverRefreshElapsed or 0) + elapsed
+
+    if self.hoverRefreshElapsed >=
+        TargetIndicator:GetHoverRefreshInterval() then
+        self.hoverRefreshElapsed = 0
+        self:UpdateHoverIndicators()
+    end
+
     for _, view in pairs(self.activePlates) do
         if Config.hideBlizzardFrame and view.blizzardUnitFrame and
             view.blizzardUnitFrame:GetAlpha() ~= 0 then
@@ -931,8 +977,13 @@ function Runtime:OnUpdate()
     end
 end
 
-function Runtime:OnEvent(event, unit)
-    if event == "NAME_PLATE_UNIT_ADDED" then
+function Runtime:OnEvent(event, unit, _, spellID)
+    if event == "PLAYER_REGEN_ENABLED" and self.stackingPending then
+        self.stackingPending = not NameplateStacking:Apply(
+            SetCVar,
+            false
+        )
+    elseif event == "NAME_PLATE_UNIT_ADDED" then
         self:AddPlate(unit)
     elseif event == "NAME_PLATE_UNIT_REMOVED" then
         self:RemovePlate(unit)
@@ -947,24 +998,23 @@ function Runtime:OnEvent(event, unit)
         for plateUnit in pairs(self.activePlates) do
             self:UpdateCast(plateUnit)
         end
+    elseif Interrupts:IsPlayerInterruptCast(
+        event,
+        unit,
+        spellID,
+        self.interruptSpellID
+    ) then
+        self.interruptMarkerRefreshPending = true
     elseif Interrupts:IsCooldownEvent(event) then
-        self:RefreshCastCooldowns()
+        local refreshMarkers = self.interruptMarkerRefreshPending
+
+        self.interruptMarkerRefreshPending = false
+        self:RefreshCastCooldowns(refreshMarkers)
     elseif event:find("UNIT_SPELLCAST", 1, true) == 1 then
         self:UpdateCast(unit, event)
-    elseif event == "PLAYER_TARGET_CHANGED" then
-        for plateUnit, view in pairs(self.activePlates) do
-            local isTarget = DisplayText:SafeValue(
-                UnitIsUnit(plateUnit, "target"),
-                false
-            )
-
-            view:SetAlpha(Appearance:GetTargetAlpha(
-                isTarget
-            ))
-            view.targetIndicator:SetShown(
-                TargetIndicator:ShouldShow(isTarget)
-            )
-        end
+    elseif event == "PLAYER_TARGET_CHANGED" or
+        event == "UPDATE_MOUSEOVER_UNIT" then
+        self:UpdateSelectionIndicators()
     end
 end
 
@@ -973,6 +1023,10 @@ function Runtime:Enable()
         return
     end
 
+    self.stackingPending = not NameplateStacking:Apply(
+        SetCVar,
+        InCombatLockdown and InCombatLockdown()
+    )
     self.castTimeFormatter = C_StringUtil.CreateSecondsFormatter()
     self.castTimeFormatter:SetMillisecondsThreshold(5)
     self.auraTimeFormatter = C_StringUtil.CreateNumericRuleFormatter()
@@ -980,17 +1034,19 @@ function Runtime:Enable()
         AuraDisplay:GetDurationBreakpoint()
     )
     self.frame = CreateFrame("Frame")
-    self.frame:SetScript("OnEvent", function(_, event, unit)
-        self:OnEvent(event, unit)
+    self.frame:SetScript("OnEvent", function(_, event, ...)
+        self:OnEvent(event, ...)
     end)
-    self.frame:SetScript("OnUpdate", function()
-        self:OnUpdate()
+    self.frame:SetScript("OnUpdate", function(_, elapsed)
+        self:OnUpdate(elapsed)
     end)
 
     local events = {
         "NAME_PLATE_UNIT_ADDED",
         "NAME_PLATE_UNIT_REMOVED",
         "PLAYER_TARGET_CHANGED",
+        "PLAYER_REGEN_ENABLED",
+        "UPDATE_MOUSEOVER_UNIT",
         "PLAYER_SPECIALIZATION_CHANGED",
         "SPELL_UPDATE_COOLDOWN",
         "TRAIT_CONFIG_UPDATED",
@@ -1004,6 +1060,7 @@ function Runtime:Enable()
         "UNIT_SPELLCAST_CHANNEL_STOP",
         "UNIT_SPELLCAST_INTERRUPTIBLE",
         "UNIT_SPELLCAST_NOT_INTERRUPTIBLE",
+        "UNIT_SPELLCAST_SUCCEEDED",
     }
 
     for _, event in ipairs(events) do
@@ -1030,6 +1087,9 @@ function Runtime:Disable()
     self.frame:SetScript("OnUpdate", nil)
     self.frame = nil
     self.interruptSpellID = nil
+    self.interruptMarkerRefreshPending = nil
+    self.stackingPending = nil
+    self.hoverRefreshElapsed = nil
     self.castTimeFormatter = nil
     self.auraTimeFormatter = nil
 

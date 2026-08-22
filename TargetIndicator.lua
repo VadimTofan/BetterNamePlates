@@ -6,6 +6,14 @@ function TargetIndicator:ShouldShow(isTarget)
     return isTarget == true
 end
 
+function TargetIndicator:ShouldShowHover(isMouseover, isTarget)
+    return isMouseover == true and isTarget ~= true
+end
+
+function TargetIndicator:GetHoverRefreshInterval()
+    return 0.05
+end
+
 local function roundToTenth(value)
     return math.floor(value * 10 + 0.5000001) / 10
 end

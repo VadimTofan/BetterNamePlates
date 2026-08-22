@@ -27,6 +27,47 @@ Describe("Target indicator", function()
         ExpectEqual(shouldShow, false)
     end)
 
+    It("shows a border without arrows for a hovered non-target", function()
+        -- Given
+        local isMouseover = true
+        local isTarget = false
+
+        -- When
+        local shouldShow = targetIndicator:ShouldShowHover(
+            isMouseover,
+            isTarget
+        )
+
+        -- Then
+        ExpectEqual(shouldShow, true)
+    end)
+
+    It("hides the hover border when the unit is already targeted", function()
+        -- Given
+        local isMouseover = true
+        local isTarget = true
+
+        -- When
+        local shouldShow = targetIndicator:ShouldShowHover(
+            isMouseover,
+            isTarget
+        )
+
+        -- Then
+        ExpectEqual(shouldShow, false)
+    end)
+
+    It("refreshes hover state often enough to clear stale borders", function()
+        -- Given
+        local expectedInterval = 0.05
+
+        -- When
+        local interval = targetIndicator:GetHoverRefreshInterval()
+
+        -- Then
+        ExpectEqual(interval, expectedInterval)
+    end)
+
     It("scales double arrows from the health bar height", function()
         -- Given
         local healthBarHeight = 17

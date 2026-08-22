@@ -43,4 +43,28 @@ Describe("Player interrupt discovery", function()
         ExpectEqual(shouldRefresh, true)
     end)
 
+    It("recognizes when the player casts their interrupt", function()
+        -- Given
+        local namespace = {}
+        local interrupts = LoadAddonFile("Interrupts.lua", namespace)
+
+        -- When
+        local interruptUsed = interrupts:IsPlayerInterruptCast(
+            "UNIT_SPELLCAST_SUCCEEDED",
+            "player",
+            106839,
+            106839
+        )
+        local otherSpellUsed = interrupts:IsPlayerInterruptCast(
+            "UNIT_SPELLCAST_SUCCEEDED",
+            "player",
+            8921,
+            106839
+        )
+
+        -- Then
+        ExpectEqual(interruptUsed, true)
+        ExpectEqual(otherSpellUsed, false)
+    end)
+
 end)

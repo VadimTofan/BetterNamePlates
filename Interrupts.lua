@@ -38,6 +38,17 @@ function Interrupts:IsCooldownEvent(event)
     return event == "SPELL_UPDATE_COOLDOWN"
 end
 
+function Interrupts:IsPlayerInterruptCast(
+    event,
+    unit,
+    spellID,
+    interruptSpellID
+)
+    return event == "UNIT_SPELLCAST_SUCCEEDED" and
+        unit == "player" and
+        spellID == interruptSpellID
+end
+
 namespace.Interrupts = Interrupts
 
 return Interrupts

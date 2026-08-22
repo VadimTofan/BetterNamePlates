@@ -46,11 +46,20 @@ if CreateFrame then
         end
 
         local runtimeState = namespace.Runtime:GetDebugState()
+        local stackingState = namespace.NameplateStacking:GetDebugState(
+            GetCVar
+        )
         print(
             Identity.name .. ":",
             "enabled=" .. tostring(Core:IsEnabled()),
             "plates=" .. tostring(runtimeState.activePlateCount),
             "last=" .. runtimeState.lastAddResult
+        )
+        print(
+            Identity.name .. ": layout",
+            "overlapH=" .. tostring(stackingState.overlapH),
+            "overlapV=" .. tostring(stackingState.overlapV),
+            "bounds=custom"
         )
     end
 end

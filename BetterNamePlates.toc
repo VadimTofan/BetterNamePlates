@@ -18,6 +18,7 @@ CombatState.lua
 Interrupts.lua
 CastDuration.lua
 AuraDisplay.lua
+NameplateStacking.lua
 Rules.lua
 Season.lua
 Runtime.lua

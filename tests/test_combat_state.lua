@@ -108,4 +108,30 @@ Describe("Combat state presentation", function()
         -- Then
         ExpectEqual(state, "priority")
     end)
+
+    It("shows kick markers only after an interruptible event", function()
+        -- Given
+        local markerAllowed = false
+
+        -- When
+        markerAllowed = combatState:GetMarkerInterruptibility(
+            "UNIT_SPELLCAST_INTERRUPTIBLE",
+            markerAllowed
+        )
+        local protectedMarkerAllowed =
+            combatState:GetMarkerInterruptibility(
+                "UNIT_SPELLCAST_NOT_INTERRUPTIBLE",
+                markerAllowed
+            )
+        local refreshedMarkerAllowed =
+            combatState:GetMarkerInterruptibility(
+                "SPELL_UPDATE_COOLDOWN",
+                markerAllowed
+            )
+
+        -- Then
+        ExpectEqual(markerAllowed, true)
+        ExpectEqual(protectedMarkerAllowed, false)
+        ExpectEqual(refreshedMarkerAllowed, true)
+    end)
 end)

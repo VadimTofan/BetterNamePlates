@@ -208,29 +208,82 @@ local function createPlateView(basePlate)
 
     view.interruptOverlay = CreateFrame("StatusBar", nil, view.cast)
     view.interruptOverlay:SetSize(Config.healthWidth, Config.castHeight)
+    view.interruptOverlay:SetFrameLevel(view.cast:GetFrameLevel() + 1)
     view.interruptOverlay:SetStatusBarTexture(Config.texture)
     setStatusBarColor(
         view.interruptOverlay,
         Config.colors.interruptUnavailableCast
     )
 
-    view.interruptMarker = view.interruptOverlay:CreateTexture(
-        nil,
-        "OVERLAY"
-    )
-    view.interruptMarker:SetSize(Config.castMarkerWidth, Config.castHeight)
-    setTextureColor(view.interruptMarker, Config.colors.interruptMarker)
-    createBorder(view.cast)
+    view.interruptMarkerTrack = CreateFrame("StatusBar", nil, view.cast)
+    view.interruptMarkerTrack:SetAllPoints(view.cast)
+    view.interruptMarkerTrack:SetFrameLevel(view.cast:GetFrameLevel() + 1)
+    view.interruptMarkerTrack:SetStatusBarTexture(Config.texture)
+    view.interruptMarkerTrack:SetStatusBarColor(0, 0, 0, 0)
+    view.interruptMarkerTrack:SetReverseFill(true)
 
-    view.castText = view.cast:CreateFontString(nil, "OVERLAY")
+    view.castForeground = CreateFrame("Frame", nil, view.cast)
+    view.castForeground:SetAllPoints(view.cast)
+    view.castForeground:SetFrameLevel(
+        FrameLayout:GetCastForegroundLevel(view.cast:GetFrameLevel())
+    )
+    createBorder(view.castForeground)
+
+    view.interruptMarkerFrame = CreateFrame("Frame", nil, view.cast)
+    view.interruptMarkerFrame:SetSize(
+        Config.castMarkerWidth,
+        Config.castHeight
+    )
+    view.interruptMarkerFrame:SetFrameLevel(
+        FrameLayout:GetCastMarkerLevel(view.cast:GetFrameLevel())
+    )
+    view.interruptMarker =
+        view.interruptMarkerFrame:CreateTexture(nil, "OVERLAY")
+    view.interruptMarker:SetAllPoints(view.interruptMarkerFrame)
+    setTextureColor(view.interruptMarker, Config.colors.interruptMarker)
+
+    view.castText = view.castForeground:CreateFontString(nil, "OVERLAY")
     view.castText:SetFont(Config.font, Config.castFontSize, "OUTLINE")
-    view.castText:SetPoint("LEFT", view.cast, "LEFT", 1, -1.5)
+    local castTextAnchor = FrameLayout:GetCastTextAnchor(
+        Config.castTextLeftPadding,
+        Config.castTextBottomPadding
+    )
+    view.castText:SetPoint(
+        castTextAnchor.point,
+        view.castForeground,
+        castTextAnchor.relativePoint,
+        castTextAnchor.x,
+        castTextAnchor.y
+    )
     view.castText:SetWidth(90)
     view.castText:SetJustifyH("LEFT")
 
-    view.castTime = view.cast:CreateFontString(nil, "OVERLAY")
+    view.castTime = view.castForeground:CreateFontString(nil, "OVERLAY")
     view.castTime:SetFont(Config.font, Config.castFontSize, "OUTLINE")
-    view.castTime:SetPoint("RIGHT", view.cast, "RIGHT", -1, -1.5)
+    view.castTime:SetPoint(
+        "RIGHT",
+        view.castForeground,
+        "RIGHT",
+        -1,
+        -1.5
+    )
+
+    view.castIconFrame = CreateFrame("Frame", nil, view)
+    view.castIconFrame:SetSize(Config.castIconSize, Config.castIconSize)
+    view.castIconFrame:SetPoint(
+        "RIGHT",
+        view.cast,
+        "LEFT",
+        -Config.castIconGap,
+        0
+    )
+    view.castIconFrame:SetFrameLevel(
+        FrameLayout:GetCastForegroundLevel(view.cast:GetFrameLevel())
+    )
+    view.castIcon = view.castIconFrame:CreateTexture(nil, "ARTWORK")
+    view.castIcon:SetAllPoints(view.castIconFrame)
+    createBorder(view.castIconFrame)
+    view.castIconFrame:Hide()
 
     if C_DurationUtil and C_StringUtil then
         view.castTimeBinding = C_DurationUtil.CreateDurationTextBinding()
@@ -367,10 +420,6 @@ end
 
 local function updateCastVisual(view, duration, cooldown)
     local totalDuration = duration:GetTotalDuration()
-    local progress = CastDuration:GetProgress(duration)
-
-    view.cast:SetMinMaxValues(0, totalDuration)
-    view.cast:SetValue(progress)
 
     local readyColor = Config.colors.interruptReadyCast
     local unavailableColor = Config.colors.interruptUnavailableCast
@@ -382,10 +431,22 @@ local function updateCastVisual(view, duration, cooldown)
             protectedColor,
             unavailableColor
         )
+        local backgroundRed, backgroundGreen, backgroundBlue =
+            evaluateColorBoolean(
+                view.castNotInterruptible,
+                Config.colors.background,
+                unavailableColor
+            )
 
         view.cast:SetStatusBarColor(red, green, blue, 1)
-        view.castBackground:SetVertexColor(red, green, blue, 1)
+        view.castBackground:SetVertexColor(
+            backgroundRed,
+            backgroundGreen,
+            backgroundBlue,
+            1
+        )
         view.interruptOverlay:Hide()
+        view.interruptMarkerFrame:Hide()
         return
     end
 
@@ -413,7 +474,7 @@ local function updateCastVisual(view, duration, cooldown)
     local backgroundRed, backgroundGreen, backgroundBlue =
         evaluateColorBoolean(
             view.castNotInterruptible,
-            protectedColor,
+            Config.colors.background,
             readyColor
         )
 
@@ -440,6 +501,22 @@ local function updateCastVisual(view, duration, cooldown)
     )
     view.interruptOverlay:SetAlpha(overlayAlpha)
     view.interruptOverlay:Show()
+    view.interruptMarkerFrame:SetAlpha(overlayAlpha)
+    view.interruptMarkerFrame:Show()
+end
+
+function Runtime:RefreshCastCooldowns()
+    for _, view in pairs(self.activePlates) do
+        if view.cast:IsShown() and view.castDuration then
+            view.interruptCooldown = self:GetInterruptCooldown()
+
+            updateCastVisual(
+                view,
+                view.castDuration,
+                view.interruptCooldown
+            )
+        end
+    end
 end
 
 function Runtime:GetPlayerRole()
@@ -539,26 +616,34 @@ function Runtime:UpdateHealth(unit)
     end
 end
 
-function Runtime:UpdateCast(unit)
+function Runtime:UpdateCast(unit, event)
     local view = self.activePlates[unit]
 
     if not view then
         return
     end
 
-    local name, _, _, _, _, _, _, notInterruptible = UnitCastingInfo(unit)
+    local name, _, textureID, _, _, _, _, notInterruptible =
+        UnitCastingInfo(unit)
     local isChannel = false
 
     if not name then
-        name, _, _, _, _, _, notInterruptible = UnitChannelInfo(unit)
+        name, _, textureID, _, _, _, notInterruptible =
+            UnitChannelInfo(unit)
         isChannel = name ~= nil
     end
 
     if not name then
         view.cast:Hide()
+        view.castIconFrame:Hide()
+        view.interruptMarkerFrame:Hide()
         return
     end
 
+    view.markerInterruptible = CombatState:GetMarkerInterruptibility(
+        event,
+        view.markerInterruptible
+    )
     view.isChannel = isChannel
     view.castNotInterruptible = notInterruptible
     view.castDuration = CastDuration:GetUnitDuration(
@@ -574,23 +659,45 @@ function Runtime:UpdateCast(unit)
     end
 
     view.cast:SetReverseFill(false)
-    view.interruptOverlay:ClearAllPoints()
-    view.interruptMarker:ClearAllPoints()
-    view.interruptOverlay:SetReverseFill(false)
-    view.interruptOverlay:SetPoint(
-        "LEFT",
-        view.cast:GetStatusBarTexture(),
-        "RIGHT"
+    CastDuration:BindRemainingTime(
+        view.cast,
+        view.castDuration,
+        Enum.StatusBarInterpolation.Immediate,
+        Enum.StatusBarTimerDirection.RemainingTime
     )
-    view.interruptMarker:SetPoint(
-        "CENTER",
-        view.interruptOverlay:GetStatusBarTexture(),
-        "RIGHT"
+    local cooldownOverlayLayout =
+        CastDuration:GetCooldownOverlayLayout()
+
+    view.interruptOverlay:ClearAllPoints()
+    view.interruptMarkerFrame:ClearAllPoints()
+    view.interruptOverlay:SetReverseFill(
+        cooldownOverlayLayout.reverseFill
+    )
+    view.interruptOverlay:SetPoint(
+        cooldownOverlayLayout.point,
+        view.cast:GetStatusBarTexture(),
+        cooldownOverlayLayout.relativePoint
+    )
+    view.interruptMarkerFrame:SetPoint(
+        cooldownOverlayLayout.markerAnchor,
+        view.interruptMarkerTrack:GetStatusBarTexture(),
+        cooldownOverlayLayout.markerPoint
     )
 
     view.castText:SetText(name)
+    view.castIcon:SetTexture(textureID)
+    view.castIconFrame:Show()
     view.isKnownCaster = true
     view.interruptCooldown = self:GetInterruptCooldown()
+
+    if view.interruptCooldown and
+        CastDuration:ShouldPlaceCooldownMarker(event) then
+        CastDuration:PlaceCooldownMarker(
+            view.interruptMarkerTrack,
+            view.castDuration:GetTotalDuration(),
+            view.interruptCooldown
+        )
+    end
 
     if view.castTimeBinding then
         view.castTimeBinding:SetDuration(view.castDuration)
@@ -708,8 +815,10 @@ function Runtime:OnEvent(event, unit)
         for plateUnit in pairs(self.activePlates) do
             self:UpdateCast(plateUnit)
         end
+    elseif Interrupts:IsCooldownEvent(event) then
+        self:RefreshCastCooldowns()
     elseif event:find("UNIT_SPELLCAST", 1, true) == 1 then
-        self:UpdateCast(unit)
+        self:UpdateCast(unit, event)
     elseif event == "PLAYER_TARGET_CHANGED" then
         for plateUnit, view in pairs(self.activePlates) do
             local isTarget = DisplayText:SafeValue(
@@ -747,6 +856,7 @@ function Runtime:Enable()
         "NAME_PLATE_UNIT_REMOVED",
         "PLAYER_TARGET_CHANGED",
         "PLAYER_SPECIALIZATION_CHANGED",
+        "SPELL_UPDATE_COOLDOWN",
         "TRAIT_CONFIG_UPDATED",
         "SPELLS_CHANGED",
         "UNIT_HEALTH",

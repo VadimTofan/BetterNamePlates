@@ -52,6 +52,20 @@ function CombatState:GetCastState(isImportant, isInterruptible)
     return "normal"
 end
 
+function CombatState:GetMarkerInterruptibility(event, currentState)
+    if event == "UNIT_SPELLCAST_INTERRUPTIBLE" then
+        return true
+    end
+
+    if event == "UNIT_SPELLCAST_NOT_INTERRUPTIBLE" or
+        event == "UNIT_SPELLCAST_START" or
+        event == "UNIT_SPELLCAST_CHANNEL_START" then
+        return false
+    end
+
+    return currentState or false
+end
+
 namespace.CombatState = CombatState
 
 return CombatState

@@ -14,7 +14,11 @@ local Config = {
     targetArrowTexture =
         "Interface\\AddOns\\BetterNamePlates\\media\\arrow_double_right_64",
     castHeight = 14,
+    castIconSize = 14,
+    castIconGap = 1,
     castMarkerWidth = 2,
+    castTextLeftPadding = 4,
+    castTextBottomPadding = 2,
     scale = 1.1,
     borderThickness = 1.2,
     hideBlizzardFrame = true,
@@ -44,7 +48,7 @@ local Config = {
         interruptMarker = {0, 1, 0.0078431377187371, 1},
         normalCast = {1, 0.96078437566757, 0.070588238537312, 1},
         priorityCast = {0.80, 0.15, 0.85, 1},
-        protectedCast = {0.80784320831299, 0.29411765933037, 0.28627452254295, 1},
+        protectedCast = {0.847059, 0.407843, 0.109804, 1},
     },
 }
 

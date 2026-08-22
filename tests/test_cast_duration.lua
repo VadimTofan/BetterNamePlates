@@ -59,4 +59,105 @@ Describe("Secret-safe cast durations", function()
         -- Then
         ExpectEqual(progress, 2.5)
     end)
+
+    It("binds status bars to the remaining-time direction", function()
+        -- Given
+        local namespace = {}
+        local castDuration = LoadAddonFile("CastDuration.lua", namespace)
+        local duration = {}
+        local receivedDuration
+        local receivedInterpolation
+        local receivedDirection
+        local statusBar = {
+            SetTimerDuration = function(
+                _,
+                value,
+                interpolation,
+                direction
+            )
+                receivedDuration = value
+                receivedInterpolation = interpolation
+                receivedDirection = direction
+            end,
+        }
+
+        -- When
+        castDuration:BindRemainingTime(
+            statusBar,
+            duration,
+            0,
+            1
+        )
+
+        -- Then
+        ExpectEqual(receivedDuration, duration)
+        ExpectEqual(receivedInterpolation, 0)
+        ExpectEqual(receivedDirection, 1)
+    end)
+
+    It("keeps the cooldown overlay inside the remaining cast fill", function()
+        -- Given
+        local namespace = {}
+        local castDuration = LoadAddonFile("CastDuration.lua", namespace)
+
+        -- When
+        local layout = castDuration:GetCooldownOverlayLayout()
+
+        -- Then
+        ExpectEqual(layout.point, "RIGHT")
+        ExpectEqual(layout.relativePoint, "RIGHT")
+        ExpectEqual(layout.reverseFill, true)
+        ExpectEqual(layout.markerAnchor, "RIGHT")
+        ExpectEqual(layout.markerPoint, "LEFT")
+    end)
+
+    It("snapshots the kick-ready marker position", function()
+        -- Given
+        local namespace = {}
+        local castDuration = LoadAddonFile("CastDuration.lua", namespace)
+        local minimum
+        local maximum
+        local markerValue
+        local markerTrack = {
+            SetMinMaxValues = function(_, receivedMinimum, receivedMaximum)
+                minimum = receivedMinimum
+                maximum = receivedMaximum
+            end,
+            SetValue = function(_, receivedValue)
+                markerValue = receivedValue
+            end,
+        }
+        local cooldown = {
+            GetRemainingDuration = function()
+                return 2
+            end,
+        }
+
+        -- When
+        castDuration:PlaceCooldownMarker(markerTrack, 5, cooldown)
+
+        -- Then
+        ExpectEqual(minimum, 0)
+        ExpectEqual(maximum, 5)
+        ExpectEqual(markerValue, 2)
+    end)
+
+    It("places kick markers only when a cast starts", function()
+        -- Given
+        local namespace = {}
+        local castDuration = LoadAddonFile("CastDuration.lua", namespace)
+
+        -- When
+        local atCastStart = castDuration:ShouldPlaceCooldownMarker(
+            "UNIT_SPELLCAST_START"
+        )
+        local duringCooldownRefresh =
+            castDuration:ShouldPlaceCooldownMarker(
+                "SPELL_UPDATE_COOLDOWN"
+            )
+
+        -- Then
+        ExpectEqual(atCastStart, true)
+        ExpectEqual(duringCooldownRefresh, false)
+    end)
 end)

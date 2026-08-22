@@ -30,4 +30,17 @@ Describe("Player interrupt discovery", function()
         ExpectEqual(spellID, nil)
     end)
 
+    It("refreshes castbars when spell cooldowns change", function()
+        -- Given
+        local namespace = {}
+        local interrupts = LoadAddonFile("Interrupts.lua", namespace)
+        local event = "SPELL_UPDATE_COOLDOWN"
+
+        -- When
+        local shouldRefresh = interrupts:IsCooldownEvent(event)
+
+        -- Then
+        ExpectEqual(shouldRefresh, true)
+    end)
+
 end)

@@ -34,6 +34,10 @@ function Interrupts:FindKnownSpell(classID, isKnown)
     return nil
 end
 
+function Interrupts:IsCooldownEvent(event)
+    return event == "SPELL_UPDATE_COOLDOWN"
+end
+
 namespace.Interrupts = Interrupts
 
 return Interrupts

@@ -685,8 +685,13 @@ function Runtime:UpdateHealth(unit)
         UnitEffectiveLevel(unit),
         nil
     )
+    local rawPowerType, rawPowerToken = UnitPowerType(unit)
     local powerType = DisplayText:SafeValue(
-        UnitPowerType(unit),
+        rawPowerType,
+        nil
+    )
+    local powerToken = DisplayText:SafeValue(
+        rawPowerToken,
         nil
     )
     local classBase = DisplayText:SafeValue(UnitClassBase(unit), nil)
@@ -705,6 +710,7 @@ function Runtime:UpdateHealth(unit)
         isKnownCaster = view.isKnownCaster,
         classBase = classBase,
         powerType = powerType,
+        powerToken = powerToken,
         manaPowerType = Enum.PowerType.Mana,
         classification = classification,
     })
@@ -1102,6 +1108,7 @@ function Runtime:Disable()
     for _, unit in ipairs(units) do
         self:RemovePlate(unit)
     end
+
 end
 
 namespace.Runtime = Runtime

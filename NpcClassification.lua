@@ -1,6 +1,7 @@
 local _, namespace = ...
 
 local NpcClassification = {}
+local FEL_INFUSION_POWER_TOKEN = "POWER_TYPE_FEL_INFUSION"
 
 function NpcClassification:GetColorKey(unit)
     if unit.playerLevel and unit.effectiveLevel then
@@ -16,6 +17,10 @@ function NpcClassification:GetColorKey(unit)
 
     if unit.isLieutenant then
         return "miniboss"
+    end
+
+    if unit.powerToken == FEL_INFUSION_POWER_TOKEN then
+        return "safe"
     end
 
     if unit.isKnownCaster or unit.classBase == "PALADIN" or

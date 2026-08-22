@@ -19,6 +19,21 @@ Describe("Jundies NPC classification", function()
         ExpectEqual(result, "caster")
     end)
 
+    It("keeps Fel Infusion NPCs out of the caster classification", function()
+        -- Given
+        local unit = {
+            isKnownCaster = true,
+            powerToken = "POWER_TYPE_FEL_INFUSION",
+            manaPowerType = 0,
+        }
+
+        -- When
+        local result = npcClassification:GetColorKey(unit)
+
+        -- Then
+        ExpectEqual(result, "safe")
+    end)
+
     It("classifies units one level above the player as lieutenants", function()
         -- Given
         local unit = {

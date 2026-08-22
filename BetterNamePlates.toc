@@ -17,6 +17,7 @@ FrameLayout.lua
 CombatState.lua
 Interrupts.lua
 CastDuration.lua
+AuraDisplay.lua
 Rules.lua
 Season.lua
 Runtime.lua

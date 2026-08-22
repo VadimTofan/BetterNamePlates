@@ -2,6 +2,7 @@ local _, namespace = ...
 
 local Config = namespace.Config
 local Appearance = namespace.Appearance
+local AuraDisplay = namespace.AuraDisplay
 local CastDuration = namespace.CastDuration
 local CombatState = namespace.CombatState
 local DisplayText = namespace.DisplayText
@@ -15,6 +16,11 @@ local TargetIndicator = namespace.TargetIndicator
 local Runtime = {
     activePlates = {},
 }
+
+local function supportsNativeAuraContainers()
+    return C_XMLUtil and C_XMLUtil.GetTemplateInfo and
+        C_XMLUtil.GetTemplateInfo("CustomAuraContainerTemplate")
+end
 
 local function setStatusBarColor(statusBar, color)
     statusBar:SetStatusBarColor(color[1], color[2], color[3], color[4])
@@ -297,20 +303,137 @@ local function createPlateView(basePlate)
 
     view.auras = {}
 
-    for index = 1, 5 do
-        local aura = CreateFrame("Frame", nil, view)
-        aura:SetSize(18, 18)
-        aura:SetPoint("BOTTOMLEFT", view.health, "TOPLEFT", (index - 1) * 20, 2)
-        aura.icon = aura:CreateTexture(nil, "ARTWORK")
-        aura.icon:SetAllPoints()
-        aura.count = aura:CreateFontString(nil, "OVERLAY")
-        aura.count:SetFont(Config.font, 8, "OUTLINE")
-        aura.count:SetPoint("BOTTOMRIGHT", aura, "BOTTOMRIGHT")
-        aura:Hide()
-        view.auras[index] = aura
+    if not supportsNativeAuraContainers() then
+        for index = 1, Config.auraMaxCount do
+            local aura = CreateFrame("Frame", nil, view)
+            aura:SetSize(Config.auraIconSize, Config.auraIconSize)
+            aura:SetPoint(
+                "BOTTOMLEFT",
+                view.health,
+                "TOPLEFT",
+                (index - 1) *
+                    (Config.auraIconSize + Config.auraIconSpacing),
+                Config.auraIconSpacing
+            )
+            aura.icon = aura:CreateTexture(nil, "ARTWORK")
+            aura.icon:SetAllPoints()
+            aura.count = aura:CreateFontString(nil, "OVERLAY")
+            aura.count:SetFont(Config.font, Config.auraFontSize, "OUTLINE")
+            aura.count:SetPoint("BOTTOMRIGHT", aura, "BOTTOMRIGHT")
+            aura:Hide()
+            view.auras[index] = aura
+        end
     end
 
     return view
+end
+
+local function initializeAuraButton(auraButton)
+    auraButton:SetSize(Config.auraIconSize, Config.auraIconSize)
+    local mouseEnabled = AuraDisplay:ShouldEnableMouse()
+
+    auraButton:EnableMouse(mouseEnabled)
+    auraButton:EnableMouseMotion(mouseEnabled)
+    auraButton:SetMouseClickEnabled(mouseEnabled)
+    auraButton:SetMouseMotionEnabled(mouseEnabled)
+    auraButton:SetHideTooltipInCombat(
+        AuraDisplay:ShouldHideTooltipInCombat()
+    )
+
+    auraButton.icon = auraButton:CreateTexture(nil, "ARTWORK")
+    auraButton.icon:SetAllPoints(auraButton)
+    auraButton.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    auraButton:SetIcon(auraButton.icon)
+
+    auraButton.cooldown = CreateFrame(
+        "Cooldown",
+        nil,
+        auraButton,
+        "CooldownFrameTemplate"
+    )
+    auraButton.cooldown:SetAllPoints(auraButton)
+    auraButton.cooldown:SetDrawBling(false)
+    auraButton.cooldown:SetDrawEdge(false)
+    auraButton.cooldown:SetHideCountdownNumbers(true)
+    auraButton.cooldown:SetReverse(
+        AuraDisplay:ShouldReverseCooldown()
+    )
+    auraButton:SetDurationCooldown(auraButton.cooldown)
+
+    auraButton.durationText = auraButton:CreateFontString(nil, "OVERLAY")
+    auraButton.durationText:SetFont(
+        Config.font,
+        Config.auraFontSize,
+        "OUTLINE"
+    )
+    auraButton.durationText:SetPoint("CENTER", auraButton, "CENTER")
+    auraButton.durationText:SetTextColor(
+        Config.colors.auraTimer[1],
+        Config.colors.auraTimer[2],
+        Config.colors.auraTimer[3],
+        Config.colors.auraTimer[4]
+    )
+    auraButton:SetDurationText(auraButton.durationText, {
+        textFormatter = Runtime.auraTimeFormatter,
+    })
+
+    auraButton.countText = auraButton:CreateFontString(nil, "OVERLAY")
+    auraButton.countText:SetFont(
+        Config.font,
+        Config.auraFontSize,
+        "OUTLINE"
+    )
+    auraButton.countText:SetPoint("BOTTOMRIGHT", auraButton, "BOTTOMRIGHT")
+    auraButton:SetApplicationCount(auraButton.countText)
+    createBorder(auraButton)
+end
+
+local function createNativeAuraContainer(view, unit)
+    if not supportsNativeAuraContainers() then
+        return
+    end
+
+    local container = CreateFrame(
+        "AuraContainer",
+        nil,
+        view,
+        "CustomAuraContainerTemplate"
+    )
+    local options = AuraDisplay:GetGroupOptions({
+        iconSize = Config.auraIconSize,
+        iconSpacing = Config.auraIconSpacing,
+        maxCount = Config.auraMaxCount,
+    })
+
+    options.sortMethod = AuraContainerSortMethod.Expiration
+    options.sortDirection = AuraContainerSortDirection.Normal
+    options.initializeFrame = initializeAuraButton
+
+    container:SetSize(1, 1)
+    container:SetPoint(
+        "BOTTOMLEFT",
+        view.health,
+        "TOPLEFT",
+        0,
+        Config.auraIconSpacing
+    )
+    container:AddAuraGroup(
+        "playerDebuffs",
+        AuraDisplay:GetFilter(),
+        options
+    )
+    container:SetAuraGroupLayout("playerDebuffs", options.layout)
+    container:SetFlowLayoutAnchorPoint("BOTTOMLEFT")
+    container:SetFlowLayoutGrowthDirection(
+        AnchorUtil.FlowDirection.Right,
+        AnchorUtil.FlowDirection.Up
+    )
+    container:SetFlowLayoutMaximumLineSize(
+        options.layout.maximumLineSize
+    )
+    container:SetEnabled(true)
+    container:SetUnit(unit)
+    view.auraContainer = container
 end
 
 function Runtime:RefreshInterruptSpell()
@@ -359,6 +482,10 @@ function Runtime:UpdateAuras(unit)
     local view = self.activePlates[unit]
 
     if not view or not C_UnitAuras then
+        return
+    end
+
+    if view.auraContainer then
         return
     end
 
@@ -740,6 +867,7 @@ function Runtime:AddPlate(unit)
     end
 
     self.activePlates[unit] = view
+    createNativeAuraContainer(view, unit)
     self.lastAddResult = "added:" .. tostring(unit)
     local isTarget = DisplayText:SafeValue(
         UnitIsUnit(unit, "target"),
@@ -773,6 +901,10 @@ function Runtime:RemovePlate(unit)
     end
 
     view:Hide()
+
+    if view.auraContainer then
+        view.auraContainer:SetEnabled(false)
+    end
 
     if view.blizzardUnitFrame then
         view.blizzardUnitFrame:SetAlpha(view.blizzardAlpha or 1)
@@ -843,6 +975,10 @@ function Runtime:Enable()
 
     self.castTimeFormatter = C_StringUtil.CreateSecondsFormatter()
     self.castTimeFormatter:SetMillisecondsThreshold(5)
+    self.auraTimeFormatter = C_StringUtil.CreateNumericRuleFormatter()
+    self.auraTimeFormatter:AddBreakpoint(
+        AuraDisplay:GetDurationBreakpoint()
+    )
     self.frame = CreateFrame("Frame")
     self.frame:SetScript("OnEvent", function(_, event, unit)
         self:OnEvent(event, unit)
@@ -895,6 +1031,7 @@ function Runtime:Disable()
     self.frame = nil
     self.interruptSpellID = nil
     self.castTimeFormatter = nil
+    self.auraTimeFormatter = nil
 
     local units = {}
 

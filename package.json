@@ -1,0 +1,11 @@
+{
+  "name": "better-name-plates",
+  "private": true,
+  "scripts": {
+    "test": "fengari tests/run.lua"
+  },
+  "devDependencies": {
+    "cbor-x": "^1.6.5",
+    "fengari-node-cli": "^0.1.0"
+  }
+}

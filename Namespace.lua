@@ -1,0 +1,3 @@
+local addonName, namespace = ...
+
+namespace.addonName = addonName

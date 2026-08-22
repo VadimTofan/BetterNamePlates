@@ -1,0 +1,49 @@
+local _, namespace = ...
+
+local Config = {
+    healthWidth = 135,
+    healthHeight = 17,
+    contentPadding = 3,
+    targetBorderThickness = 2,
+    targetArrowWidth = 20,
+    targetArrowHeight = 20,
+    targetArrowX = -10,
+    targetArrowScale = 0.7,
+    targetArrowWidthScale = 1.5,
+    targetArrowHeightScale = 1.36,
+    targetArrowTexture =
+        "Interface\\AddOns\\BetterNamePlates\\media\\arrow_double_right_64",
+    castHeight = 7,
+    scale = 1.1,
+    borderThickness = 1.2,
+    hideBlizzardFrame = true,
+    nameMaxLength = 16,
+    nameFontSize = 10,
+    nameFontFlags = "OUTLINE",
+    nameShadowOffset = 1,
+    nameShadowColor = {0, 0, 0, 1},
+    healthFontSize = 9,
+    castFontSize = 9,
+    texture = "Interface\\Buttons\\WHITE8X8",
+    font = "Fonts\\ARIALN.TTF",
+    colors = {
+        background = {0.2117647, 0.2117647, 0.2117647, 1},
+        border = {0, 0, 0, 1},
+        target = {0.9921568627451, 1, 0.97254901960784, 1},
+        safe = {0.745098, 0.188235, 0.113725, 1},
+        aggro = {0.866667, 0.435294, 0, 1},
+        secure = {0.745098, 0.188235, 0.113725, 1},
+        contested = {1, 0.913726, 0.227451, 1},
+        lost = {0.866667, 0.435294, 0, 1},
+        caster = {0, 0.8196, 1, 1},
+        miniboss = {0.576471, 0.439216, 0.858824, 1},
+        boss = {1, 0, 1, 1},
+        normalCast = {0.95, 0.70, 0.15, 1},
+        priorityCast = {0.80, 0.15, 0.85, 1},
+        protectedCast = {0.45, 0.45, 0.45, 1},
+    },
+}
+
+namespace.Config = Config
+
+return Config

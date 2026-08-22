@@ -1,0 +1,41 @@
+Describe("Fixed Jundies presentation", function()
+    It("uses the exported hostile plate dimensions", function()
+        -- Given
+        local namespace = {}
+
+        -- When
+        local config = LoadAddonFile("Config.lua", namespace)
+
+        -- Then
+        ExpectEqual(config.healthWidth, 135)
+        ExpectEqual(config.healthHeight, 17)
+        ExpectEqual(config.contentPadding, 3)
+        ExpectEqual(config.targetBorderThickness, 2)
+        ExpectEqual(config.targetArrowWidth, 20)
+        ExpectEqual(config.targetArrowHeight, 20)
+        ExpectEqual(config.targetArrowX, -10)
+        ExpectEqual(config.targetArrowScale, 0.7)
+        ExpectEqual(config.targetArrowHeightScale, 1.36)
+        ExpectEqual(
+            config.targetArrowTexture,
+            "Interface\\AddOns\\BetterNamePlates\\media\\arrow_double_right_64"
+        )
+        ExpectEqual(config.colors.target[1], 0.9921568627451)
+        ExpectEqual(config.castHeight, 7)
+        ExpectEqual(config.nameMaxLength, 16)
+        ExpectEqual(config.scale, 1.1)
+        ExpectEqual(config.nameFontSize, 10)
+        ExpectEqual(config.nameFontFlags, "OUTLINE")
+        ExpectEqual(config.nameShadowOffset, 1)
+        ExpectEqual(config.nameShadowColor[1], 0)
+        ExpectEqual(config.nameShadowColor[4], 1)
+        ExpectEqual(config.borderThickness, 1.2)
+        ExpectEqual(config.texture, "Interface\\Buttons\\WHITE8X8")
+        ExpectEqual(config.font, "Fonts\\ARIALN.TTF")
+        ExpectEqual(config.hideBlizzardFrame, true)
+        ExpectEqual(config.colors.safe[1], 0.745098)
+        ExpectEqual(config.colors.safe[2], 0.188235)
+        ExpectEqual(config.colors.caster[2], 0.8196)
+        ExpectEqual(config.colors.miniboss[1], 0.576471)
+    end)
+end)

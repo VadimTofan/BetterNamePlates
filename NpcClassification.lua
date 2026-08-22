@@ -1,0 +1,36 @@
+local _, namespace = ...
+
+local NpcClassification = {}
+
+function NpcClassification:GetColorKey(unit)
+    if unit.playerLevel and unit.effectiveLevel then
+        if unit.effectiveLevel == -1 or
+            unit.effectiveLevel == unit.playerLevel + 2 then
+            return "boss"
+        end
+
+        if unit.effectiveLevel == unit.playerLevel + 1 then
+            return "miniboss"
+        end
+    end
+
+    if unit.isLieutenant then
+        return "miniboss"
+    end
+
+    if unit.isKnownCaster or unit.classBase == "PALADIN" or
+        unit.powerType ~= nil and unit.powerType == unit.manaPowerType or
+        unit.manaMaximum and unit.manaMaximum > 0 then
+        return "caster"
+    end
+
+    if unit.classification == "rareelite" then
+        return "miniboss"
+    end
+
+    return "safe"
+end
+
+namespace.NpcClassification = NpcClassification
+
+return NpcClassification

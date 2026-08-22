@@ -1,0 +1,21 @@
+## Interface: 120100
+## Title: BetterNamePlates
+## Notes: Opinionated, lightweight Mythic+ nameplates.
+## Author: Vadim
+## Version: 0.1.0
+## IconTexture: Interface\AddOns\BetterNamePlates\icon.png
+
+Namespace.lua
+Identity.lua
+Config.lua
+HealthFormat.lua
+DisplayText.lua
+NpcClassification.lua
+TargetIndicator.lua
+Appearance.lua
+FrameLayout.lua
+CombatState.lua
+Rules.lua
+Season.lua
+Runtime.lua
+Core.lua

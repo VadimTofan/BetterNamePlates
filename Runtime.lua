@@ -2,10 +2,12 @@ local _, namespace = ...
 
 local Config = namespace.Config
 local Appearance = namespace.Appearance
+local CastDuration = namespace.CastDuration
 local CombatState = namespace.CombatState
 local DisplayText = namespace.DisplayText
 local FrameLayout = namespace.FrameLayout
 local HealthFormat = namespace.HealthFormat
+local Interrupts = namespace.Interrupts
 local NpcClassification = namespace.NpcClassification
 local Rules = namespace.Rules
 local TargetIndicator = namespace.TargetIndicator
@@ -16,6 +18,10 @@ local Runtime = {
 
 local function setStatusBarColor(statusBar, color)
     statusBar:SetStatusBarColor(color[1], color[2], color[3], color[4])
+end
+
+local function setTextureColor(texture, color)
+    texture:SetColorTexture(color[1], color[2], color[3], color[4])
 end
 
 local function createBorder(frame)
@@ -193,7 +199,28 @@ local function createPlateView(basePlate)
     view.cast:SetSize(Config.healthWidth, Config.castHeight)
     view.cast:SetPoint("TOP", view.health, "BOTTOM", 0, -1)
     view.cast:SetStatusBarTexture(Config.texture)
+    view.cast:SetClipsChildren(true)
     view.cast:Hide()
+
+    view.castBackground = view.cast:CreateTexture(nil, "BACKGROUND")
+    view.castBackground:SetAllPoints()
+    setTextureColor(view.castBackground, Config.colors.background)
+
+    view.interruptOverlay = CreateFrame("StatusBar", nil, view.cast)
+    view.interruptOverlay:SetSize(Config.healthWidth, Config.castHeight)
+    view.interruptOverlay:SetStatusBarTexture(Config.texture)
+    setStatusBarColor(
+        view.interruptOverlay,
+        Config.colors.interruptUnavailableCast
+    )
+
+    view.interruptMarker = view.interruptOverlay:CreateTexture(
+        nil,
+        "OVERLAY"
+    )
+    view.interruptMarker:SetSize(Config.castMarkerWidth, Config.castHeight)
+    setTextureColor(view.interruptMarker, Config.colors.interruptMarker)
+    createBorder(view.cast)
 
     view.castText = view.cast:CreateFontString(nil, "OVERLAY")
     view.castText:SetFont(Config.font, Config.castFontSize, "OUTLINE")
@@ -204,6 +231,16 @@ local function createPlateView(basePlate)
     view.castTime = view.cast:CreateFontString(nil, "OVERLAY")
     view.castTime:SetFont(Config.font, Config.castFontSize, "OUTLINE")
     view.castTime:SetPoint("RIGHT", view.cast, "RIGHT", -1, -1.5)
+
+    if C_DurationUtil and C_StringUtil then
+        view.castTimeBinding = C_DurationUtil.CreateDurationTextBinding()
+        view.castTimeBinding:SetFontString(view.castTime)
+        view.castTimeBinding:SetFormatter(Runtime.castTimeFormatter)
+        view.castTimeBinding:SetExpiredText("")
+        view.castTimeBinding:SetZeroDurationText("")
+        view.castTimeBinding:SetUpdateInterval(0.05)
+        view.castTimeBinding:SetEnabled(true)
+    end
 
     view.auras = {}
 
@@ -223,10 +260,62 @@ local function createPlateView(basePlate)
     return view
 end
 
+function Runtime:RefreshInterruptSpell()
+    local classID = select(3, UnitClass("player"))
+
+    self.interruptSpellID = Interrupts:FindKnownSpell(
+        classID,
+        function(spellID, bank)
+            if not C_SpellBook then
+                return false
+            end
+
+            if bank == "pet" then
+                local petBank = Enum.SpellBookSpellBank.Pet
+
+                return C_SpellBook.IsSpellKnown(spellID, petBank)
+            end
+
+            if C_SpellBook.IsSpellKnown(spellID) then
+                return true
+            end
+
+            return spellID == 132409 and
+                C_SpellBook.IsSpellKnownOrInSpellBook and
+                C_SpellBook.IsSpellKnownOrInSpellBook(spellID)
+        end
+    )
+end
+
+function Runtime:GetInterruptCooldown()
+    if not self.interruptSpellID or not C_Spell then
+        return nil
+    end
+
+    if C_Spell.GetSpellCooldownDuration then
+        return C_Spell.GetSpellCooldownDuration(
+            self.interruptSpellID,
+            true
+        )
+    end
+
+    return nil
+end
+
 function Runtime:UpdateAuras(unit)
     local view = self.activePlates[unit]
 
     if not view or not C_UnitAuras then
+        return
+    end
+
+    local inCombat = InCombatLockdown and InCombatLockdown()
+
+    if not CombatState:CanReadAuras(inCombat) then
+        for _, aura in ipairs(view.auras) do
+            aura:Hide()
+        end
+
         return
     end
 
@@ -257,8 +346,115 @@ function Runtime:UpdateAuras(unit)
     end
 end
 
+local function evaluateColorBoolean(value, trueColor, falseColor)
+    return
+        C_CurveUtil.EvaluateColorValueFromBoolean(
+            value,
+            trueColor[1],
+            falseColor[1]
+        ),
+        C_CurveUtil.EvaluateColorValueFromBoolean(
+            value,
+            trueColor[2],
+            falseColor[2]
+        ),
+        C_CurveUtil.EvaluateColorValueFromBoolean(
+            value,
+            trueColor[3],
+            falseColor[3]
+        )
+end
+
+local function updateCastVisual(view, duration, cooldown)
+    local totalDuration = duration:GetTotalDuration()
+    local progress = CastDuration:GetProgress(duration)
+
+    view.cast:SetMinMaxValues(0, totalDuration)
+    view.cast:SetValue(progress)
+
+    local readyColor = Config.colors.interruptReadyCast
+    local unavailableColor = Config.colors.interruptUnavailableCast
+    local protectedColor = Config.colors.protectedCast
+
+    if not cooldown then
+        local red, green, blue = evaluateColorBoolean(
+            view.castNotInterruptible,
+            protectedColor,
+            unavailableColor
+        )
+
+        view.cast:SetStatusBarColor(red, green, blue, 1)
+        view.castBackground:SetVertexColor(red, green, blue, 1)
+        view.interruptOverlay:Hide()
+        return
+    end
+
+    local cooldownReady = cooldown:IsZero()
+    local activeRed, activeGreen, activeBlue = evaluateColorBoolean(
+        cooldownReady,
+        readyColor,
+        unavailableColor
+    )
+    local castRed = C_CurveUtil.EvaluateColorValueFromBoolean(
+        view.castNotInterruptible,
+        protectedColor[1],
+        activeRed
+    )
+    local castGreen = C_CurveUtil.EvaluateColorValueFromBoolean(
+        view.castNotInterruptible,
+        protectedColor[2],
+        activeGreen
+    )
+    local castBlue = C_CurveUtil.EvaluateColorValueFromBoolean(
+        view.castNotInterruptible,
+        protectedColor[3],
+        activeBlue
+    )
+    local backgroundRed, backgroundGreen, backgroundBlue =
+        evaluateColorBoolean(
+            view.castNotInterruptible,
+            protectedColor,
+            readyColor
+        )
+
+    view.cast:SetStatusBarColor(castRed, castGreen, castBlue, 1)
+    view.castBackground:SetVertexColor(
+        backgroundRed,
+        backgroundGreen,
+        backgroundBlue,
+        1
+    )
+
+    view.interruptOverlay:SetMinMaxValues(0, totalDuration)
+    view.interruptOverlay:SetValue(cooldown:GetRemainingDuration())
+
+    local overlayAlpha = C_CurveUtil.EvaluateColorValueFromBoolean(
+        cooldownReady,
+        0,
+        1
+    )
+    overlayAlpha = C_CurveUtil.EvaluateColorValueFromBoolean(
+        view.castNotInterruptible,
+        0,
+        overlayAlpha
+    )
+    view.interruptOverlay:SetAlpha(overlayAlpha)
+    view.interruptOverlay:Show()
+end
+
 function Runtime:GetPlayerRole()
-    return UnitGroupRolesAssigned("player") or "NONE"
+    local assignedRole = UnitGroupRolesAssigned("player")
+    local specializationIndex = GetSpecialization()
+    local specializationRole
+
+    if specializationIndex then
+        specializationRole = GetSpecializationRole(specializationIndex)
+    end
+
+    return CombatState:ResolvePlayerRole(
+        assignedRole,
+        specializationRole
+    )
 end
 
 function Runtime:UpdateHealth(unit)
@@ -350,13 +546,11 @@ function Runtime:UpdateCast(unit)
         return
     end
 
-    local name, _, _, startTime, endTime, _, _, notInterruptible,
-        spellID = UnitCastingInfo(unit)
+    local name, _, _, _, _, _, _, notInterruptible = UnitCastingInfo(unit)
     local isChannel = false
 
     if not name then
-        name, _, _, startTime, endTime, _, notInterruptible,
-            spellID = UnitChannelInfo(unit)
+        name, _, _, _, _, _, notInterruptible = UnitChannelInfo(unit)
         isChannel = name ~= nil
     end
 
@@ -365,21 +559,47 @@ function Runtime:UpdateCast(unit)
         return
     end
 
-    local rule = Rules:GetCast(spellID)
-    local castState = CombatState:GetCastState(
-        rule.priority,
-        not notInterruptible
+    view.isChannel = isChannel
+    view.castNotInterruptible = notInterruptible
+    view.castDuration = CastDuration:GetUnitDuration(
+        unit,
+        isChannel,
+        UnitCastingDuration,
+        UnitChannelDuration
     )
 
-    view.castStart = startTime / 1000
-    view.castEnd = endTime / 1000
-    view.isChannel = isChannel
-    view.cast:SetMinMaxValues(view.castStart, view.castEnd)
+    if not view.castDuration then
+        view.cast:Hide()
+        return
+    end
+
+    view.cast:SetReverseFill(false)
+    view.interruptOverlay:ClearAllPoints()
+    view.interruptMarker:ClearAllPoints()
+    view.interruptOverlay:SetReverseFill(false)
+    view.interruptOverlay:SetPoint(
+        "LEFT",
+        view.cast:GetStatusBarTexture(),
+        "RIGHT"
+    )
+    view.interruptMarker:SetPoint(
+        "CENTER",
+        view.interruptOverlay:GetStatusBarTexture(),
+        "RIGHT"
+    )
+
     view.castText:SetText(name)
     view.isKnownCaster = true
-    setStatusBarColor(
-        view.cast,
-        Config.colors[castState .. "Cast"] or Config.colors.normalCast
+    view.interruptCooldown = self:GetInterruptCooldown()
+
+    if view.castTimeBinding then
+        view.castTimeBinding:SetDuration(view.castDuration)
+    end
+
+    updateCastVisual(
+        view,
+        view.castDuration,
+        view.interruptCooldown
     )
     view.cast:Show()
     self:UpdateHealth(unit)
@@ -456,20 +676,18 @@ function Runtime:RemovePlate(unit)
 end
 
 function Runtime:OnUpdate()
-    local now = GetTime()
-
     for _, view in pairs(self.activePlates) do
         if Config.hideBlizzardFrame and view.blizzardUnitFrame and
             view.blizzardUnitFrame:GetAlpha() ~= 0 then
             view.blizzardUnitFrame:SetAlpha(0)
         end
 
-        if view.cast:IsShown() then
-            local value = view.isChannel and view.castEnd - now or now
-            local remaining = math.max(0, view.castEnd - now)
-
-            view.cast:SetValue(value)
-            view.castTime:SetFormattedText("%.1f", remaining)
+        if view.cast:IsShown() and view.castDuration then
+            updateCastVisual(
+                view,
+                view.castDuration,
+                view.interruptCooldown
+            )
         end
     end
 end
@@ -483,6 +701,13 @@ function Runtime:OnEvent(event, unit)
         self:UpdateHealth(unit)
     elseif event == "UNIT_AURA" then
         self:UpdateAuras(unit)
+    elseif event == "PLAYER_SPECIALIZATION_CHANGED" or
+        event == "TRAIT_CONFIG_UPDATED" or event == "SPELLS_CHANGED" then
+        self:RefreshInterruptSpell()
+
+        for plateUnit in pairs(self.activePlates) do
+            self:UpdateCast(plateUnit)
+        end
     elseif event:find("UNIT_SPELLCAST", 1, true) == 1 then
         self:UpdateCast(unit)
     elseif event == "PLAYER_TARGET_CHANGED" then
@@ -507,6 +732,8 @@ function Runtime:Enable()
         return
     end
 
+    self.castTimeFormatter = C_StringUtil.CreateSecondsFormatter()
+    self.castTimeFormatter:SetMillisecondsThreshold(5)
     self.frame = CreateFrame("Frame")
     self.frame:SetScript("OnEvent", function(_, event, unit)
         self:OnEvent(event, unit)
@@ -519,6 +746,9 @@ function Runtime:Enable()
         "NAME_PLATE_UNIT_ADDED",
         "NAME_PLATE_UNIT_REMOVED",
         "PLAYER_TARGET_CHANGED",
+        "PLAYER_SPECIALIZATION_CHANGED",
+        "TRAIT_CONFIG_UPDATED",
+        "SPELLS_CHANGED",
         "UNIT_HEALTH",
         "UNIT_AURA",
         "UNIT_THREAT_SITUATION_UPDATE",
@@ -533,6 +763,8 @@ function Runtime:Enable()
     for _, event in ipairs(events) do
         self.frame:RegisterEvent(event)
     end
+
+    self:RefreshInterruptSpell()
 
     for _, basePlate in ipairs(C_NamePlate.GetNamePlates()) do
         local unit = basePlate.namePlateUnitToken
@@ -551,6 +783,8 @@ function Runtime:Disable()
     self.frame:UnregisterAllEvents()
     self.frame:SetScript("OnUpdate", nil)
     self.frame = nil
+    self.interruptSpellID = nil
+    self.castTimeFormatter = nil
 
     local units = {}
 

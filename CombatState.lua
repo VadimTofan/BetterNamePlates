@@ -2,10 +2,18 @@ local _, namespace = ...
 
 local CombatState = {}
 
+function CombatState:CanReadAuras(inCombat)
+    return not inCombat
+end
+
 function CombatState:GetThreatState(role, threatStatus)
     local hasAggro = threatStatus and threatStatus >= 2
 
     if role == "TANK" then
+        if threatStatus == nil then
+            return "safe"
+        end
+
         if threatStatus == 3 then
             return "secure"
         end
@@ -22,6 +30,14 @@ function CombatState:GetThreatState(role, threatStatus)
     end
 
     return "safe"
+end
+
+function CombatState:ResolvePlayerRole(assignedRole, specializationRole)
+    if assignedRole and assignedRole ~= "NONE" then
+        return assignedRole
+    end
+
+    return specializationRole or "NONE"
 end
 
 function CombatState:GetCastState(isImportant, isInterruptible)

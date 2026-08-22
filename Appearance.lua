@@ -11,8 +11,8 @@ function Appearance:GetHealthColorKey(
     isKnownCaster,
     threatState
 )
-    if threatState == "aggro" or threatState == "secure" or
-        threatState == "contested" then
+    if threatState == "aggro" or threatState == "contested" or
+        threatState == "lost" then
         return threatState
     end
 

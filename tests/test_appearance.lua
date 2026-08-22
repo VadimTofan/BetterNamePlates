@@ -19,6 +19,23 @@ Describe("Profile unit coloring", function()
         ExpectEqual(colorKey, "caster")
     end)
 
+    It("keeps the caster color under secure tank threat", function()
+        -- Given
+        local classification = "normal"
+        local isKnownCaster = true
+        local threatState = "secure"
+
+        -- When
+        local colorKey = appearance:GetHealthColorKey(
+            classification,
+            isKnownCaster,
+            threatState
+        )
+
+        -- Then
+        ExpectEqual(colorKey, "caster")
+    end)
+
     It("uses the miniboss color for rare elites", function()
         -- Given
         local classification = "rareelite"

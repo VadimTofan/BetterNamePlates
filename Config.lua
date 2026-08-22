@@ -13,7 +13,8 @@ local Config = {
     targetArrowHeightScale = 1.36,
     targetArrowTexture =
         "Interface\\AddOns\\BetterNamePlates\\media\\arrow_double_right_64",
-    castHeight = 7,
+    castHeight = 14,
+    castMarkerWidth = 2,
     scale = 1.1,
     borderThickness = 1.2,
     hideBlizzardFrame = true,
@@ -38,9 +39,12 @@ local Config = {
         caster = {0, 0.8196, 1, 1},
         miniboss = {0.576471, 0.439216, 0.858824, 1},
         boss = {1, 0, 1, 1},
-        normalCast = {0.95, 0.70, 0.15, 1},
+        interruptReadyCast = {1, 0.96078437566757, 0.070588238537312, 1},
+        interruptUnavailableCast = {1, 0.49411767721176, 0.13725490868092, 1},
+        interruptMarker = {0, 1, 0.0078431377187371, 1},
+        normalCast = {1, 0.96078437566757, 0.070588238537312, 1},
         priorityCast = {0.80, 0.15, 0.85, 1},
-        protectedCast = {0.45, 0.45, 0.45, 1},
+        protectedCast = {0.80784320831299, 0.29411765933037, 0.28627452254295, 1},
     },
 }
 

@@ -31,6 +31,8 @@ end
 
 dofile("tests/test_core.lua")
 dofile("tests/test_combat_state.lua")
+dofile("tests/test_interrupts.lua")
+dofile("tests/test_cast_duration.lua")
 dofile("tests/test_rules.lua")
 dofile("tests/test_config.lua")
 dofile("tests/test_frame_layout.lua")

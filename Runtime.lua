@@ -33,29 +33,12 @@ function Runtime:AdvanceRefreshClock(current, elapsed, interval)
     return false, accumulated
 end
 
-function Runtime:HandleDungeonCleanupEvent(
-    event,
-    isInCombat,
-    collect
-)
-    if event == "CHALLENGE_MODE_COMPLETED" then
-        self.dungeonCleanupPending = true
-    end
-
-    if not self.dungeonCleanupPending or isInCombat() then
-        return
-    end
-
-    self.dungeonCleanupPending = nil
-    collect()
-end
-
 function Runtime:CreateAbsorbUpdateApi()
     return {
         predict = UnitGetDetailedHealPrediction,
         enums = {
-            maximumHealthWithAbsorbs =
-                Enum.UnitMaximumHealthMode.WithAbsorbs,
+            defaultMaximumHealth =
+                Enum.UnitMaximumHealthMode.Default,
             maximumHealthClamp =
                 Enum.UnitDamageAbsorbClampMode.MaximumHealth,
             missingHealthClamp = Enum.UnitDamageAbsorbClampMode
@@ -238,6 +221,9 @@ local function createAbsorbPrediction(view)
     end
 
     view.absorbCalculator = CreateUnitHealPredictionCalculator()
+    view.absorbSnapshot = view.absorbSnapshot or {}
+    view.absorbSnapshot.captured = nil
+    view.absorbSnapshot.maximum = nil
     view.absorbClip = CreateFrame("Frame", nil, view.health)
     view.absorbClip:SetAllPoints(view.health)
     view.absorbClip:SetClipsChildren(true)
@@ -915,8 +901,6 @@ local function evaluateColorBoolean(value, trueColor, falseColor)
 end
 
 local function updateCastVisual(view, duration, cooldown)
-    local totalDuration = duration:GetTotalDuration()
-
     local readyColor = Config.colors.interruptReadyCast
     local unavailableColor = Config.colors.interruptUnavailableCast
     local protectedColor = Config.colors.protectedCast
@@ -982,9 +966,6 @@ local function updateCastVisual(view, duration, cooldown)
         1
     )
 
-    view.interruptOverlay:SetMinMaxValues(0, totalDuration)
-    view.interruptOverlay:SetValue(cooldown:GetRemainingDuration())
-
     local overlayAlpha = C_CurveUtil.EvaluateColorValueFromBoolean(
         cooldownReady,
         0,
@@ -1038,7 +1019,7 @@ function Runtime:GetPlayerRole()
     )
 end
 
-function Runtime:UpdateHealth(unit)
+function Runtime:UpdateHealth(unit, shouldCaptureAbsorb)
     local view = self.activePlates[unit]
 
     if not view then
@@ -1114,7 +1095,13 @@ function Runtime:UpdateHealth(unit)
     setStatusBarColor(view.health, Config.colors[colorKey])
     view.name:SetText(DisplayText:ShortenName(UnitName(unit)))
 
-    self:UpdateHealthValues(unit, view, health, maximum)
+    self:UpdateHealthValues(
+        unit,
+        view,
+        health,
+        maximum,
+        shouldCaptureAbsorb
+    )
 
     if issecretvalue and
         (issecretvalue(health) or issecretvalue(maximum)) then
@@ -1183,7 +1170,9 @@ function Runtime:UpdateCast(unit, event)
         view.cast,
         view.castDuration,
         Enum.StatusBarInterpolation.Immediate,
-        Enum.StatusBarTimerDirection.RemainingTime
+        CastDuration:GetTimerDirection(
+            Enum.StatusBarTimerDirection
+        )
     )
     local cooldownOverlayLayout =
         CastDuration:GetCooldownOverlayLayout()
@@ -1191,6 +1180,9 @@ function Runtime:UpdateCast(unit, event)
     view.interruptOverlay:ClearAllPoints()
     view.interruptMarkerFrame:ClearAllPoints()
     view.interruptOverlay:SetReverseFill(
+        cooldownOverlayLayout.reverseFill
+    )
+    view.interruptMarkerTrack:SetReverseFill(
         cooldownOverlayLayout.reverseFill
     )
     view.interruptOverlay:SetPoint(
@@ -1213,6 +1205,7 @@ function Runtime:UpdateCast(unit, event)
         CastDuration:ShouldPlaceCooldownMarker(event) then
         CastDuration:PlaceCooldownMarker(
             view.interruptMarkerTrack,
+            view.interruptOverlay,
             view.castDuration:GetTotalDuration(),
             view.interruptCooldown
         )
@@ -1277,17 +1270,31 @@ function Runtime:ReleaseLightweightView(view)
     view.blizzardUnitFrame = nil
     view.blizzardAlpha = nil
     view.blizzardAurasAlpha = nil
+
+    if view.absorbSnapshot then
+        view.absorbSnapshot.captured = nil
+        view.absorbSnapshot.maximum = nil
+    end
+
     self.lightweightPool[#self.lightweightPool + 1] = view
 end
 
-function Runtime:UpdateHealthValues(unit, view, health, maximum)
+function Runtime:UpdateHealthValues(
+    unit,
+    view,
+    health,
+    maximum,
+    shouldCaptureAbsorb
+)
     if view.absorbCalculator and self.absorbUpdateApi then
         AbsorbPrediction:Update(
             unit,
             view.absorbCalculator,
             view.health,
             view.absorb,
-            self.absorbUpdateApi
+            self.absorbUpdateApi,
+            view.absorbSnapshot,
+            shouldCaptureAbsorb
         )
         return
     end
@@ -1296,7 +1303,7 @@ function Runtime:UpdateHealthValues(unit, view, health, maximum)
     view.health:SetValue(health)
 end
 
-function Runtime:UpdateLightweightHealth(unit)
+function Runtime:UpdateLightweightHealth(unit, shouldCaptureAbsorb)
     local view = self.lightweightPlates[unit]
 
     if not view then
@@ -1307,8 +1314,28 @@ function Runtime:UpdateLightweightHealth(unit)
         unit,
         view,
         UnitHealth(unit),
-        UnitHealthMax(unit)
+        UnitHealthMax(unit),
+        shouldCaptureAbsorb
     )
+end
+
+function Runtime:ResetAbsorbSnapshots()
+    local function resetView(view)
+        if not view.absorbSnapshot then
+            return
+        end
+
+        view.absorbSnapshot.captured = nil
+        view.absorbSnapshot.maximum = nil
+    end
+
+    for _, view in pairs(self.activePlates) do
+        resetView(view)
+    end
+
+    for _, view in pairs(self.lightweightPlates) do
+        resetView(view)
+    end
 end
 
 function Runtime:ShowLightweightPlate(unit, basePlate)
@@ -1609,15 +1636,8 @@ function Runtime:OnEvent(event, unit, _, spellID)
         return
     end
 
-    if event == "CHALLENGE_MODE_COMPLETED" or
-        event == "PLAYER_REGEN_ENABLED" then
-        self:HandleDungeonCleanupEvent(
-            event,
-            InCombatLockdown,
-            function()
-                collectgarbage("collect")
-            end
-        )
+    if event == "PLAYER_REGEN_ENABLED" then
+        self:ResetAbsorbSnapshots()
     end
 
     if NameplateStacking:ShouldApplyOnEvent(
@@ -1635,8 +1655,10 @@ function Runtime:OnEvent(event, unit, _, spellID)
     elseif event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH" then
         self:UpdateLightweightHealth(unit)
         self:UpdateHealth(unit)
+    elseif event == "UNIT_ABSORB_AMOUNT_CHANGED" then
+        self:UpdateLightweightHealth(unit, true)
+        self:UpdateHealth(unit, true)
     elseif event == "UNIT_HEAL_PREDICTION" or
-        event == "UNIT_ABSORB_AMOUNT_CHANGED" or
         event == "UNIT_HEAL_ABSORB_AMOUNT_CHANGED" or
         event == "UNIT_FACTION" or
         event == "UNIT_THREAT_SITUATION_UPDATE" then
@@ -1710,7 +1732,6 @@ function Runtime:Enable()
         "PLAYER_TARGET_CHANGED",
         "PLAYER_FOCUS_CHANGED",
         "PLAYER_REGEN_ENABLED",
-        "CHALLENGE_MODE_COMPLETED",
         "RAID_TARGET_UPDATE",
         "UPDATE_MOUSEOVER_UNIT",
         "PLAYER_SPECIALIZATION_CHANGED",
@@ -1769,8 +1790,6 @@ function Runtime:Disable()
     self.absorbUpdateApi = nil
     self.castTimeFormatter = nil
     self.auraTimeFormatter = nil
-    self.dungeonCleanupPending = nil
-
     self:ReleaseAllPlates()
 
 end

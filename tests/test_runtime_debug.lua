@@ -2,14 +2,27 @@ Describe("Runtime diagnostics", function()
     It("updates absorb prediction for lightweight healthbars", function()
         -- Given
         local receivedUnit
+        local receivedSnapshot
+        local receivedCapture
         local namespace = {
             Config = {},
             CombatState = {},
             FrameLayout = {},
             Rules = {},
             AbsorbPrediction = {
-                Update = function(_, unit)
+                Update = function(
+                    _,
+                    unit,
+                    _,
+                    _,
+                    _,
+                    _,
+                    snapshot,
+                    shouldCapture
+                )
                     receivedUnit = unit
+                    receivedSnapshot = snapshot
+                    receivedCapture = shouldCapture
                 end,
             },
         }
@@ -19,6 +32,7 @@ Describe("Runtime diagnostics", function()
             absorbCalculator = {},
             absorb = {},
             health = {},
+            absorbSnapshot = {},
         }
 
         -- When
@@ -26,11 +40,48 @@ Describe("Runtime diagnostics", function()
             "nameplate1",
             view,
             75,
-            100
+            100,
+            true
         )
 
         -- Then
         ExpectEqual(receivedUnit, "nameplate1")
+        ExpectEqual(receivedSnapshot, view.absorbSnapshot)
+        ExpectEqual(receivedCapture, true)
+    end)
+
+    It("resets absorb snapshots after combat", function()
+        -- Given
+        local namespace = {
+            Config = {},
+            CombatState = {},
+            FrameLayout = {},
+            Rules = {},
+        }
+        local runtime = LoadAddonFile("Runtime.lua", namespace)
+        local fullSnapshot = {
+            captured = true,
+            maximum = "full-secret",
+        }
+        local lightweightSnapshot = {
+            captured = true,
+            maximum = "light-secret",
+        }
+        runtime.activePlates = {
+            nameplate1 = {absorbSnapshot = fullSnapshot},
+        }
+        runtime.lightweightPlates = {
+            nameplate2 = {absorbSnapshot = lightweightSnapshot},
+        }
+
+        -- When
+        runtime:ResetAbsorbSnapshots()
+
+        -- Then
+        ExpectEqual(fullSnapshot.captured, nil)
+        ExpectEqual(fullSnapshot.maximum, nil)
+        ExpectEqual(lightweightSnapshot.captured, nil)
+        ExpectEqual(lightweightSnapshot.maximum, nil)
     end)
 
     It("reuses released lightweight nameplates", function()
@@ -46,6 +97,10 @@ Describe("Runtime diagnostics", function()
         local pooledView = {
             blizzardAlpha = 0.75,
             blizzardAurasAlpha = 0.5,
+            absorbSnapshot = {
+                captured = true,
+                maximum = "secret-absorb",
+            },
             Hide = function()
             end,
             SetParent = function()
@@ -65,6 +120,8 @@ Describe("Runtime diagnostics", function()
         ExpectEqual(#runtime.lightweightPool, 0)
         ExpectEqual(acquired.blizzardAlpha, nil)
         ExpectEqual(acquired.blizzardAurasAlpha, nil)
+        ExpectEqual(acquired.absorbSnapshot.captured, nil)
+        ExpectEqual(acquired.absorbSnapshot.maximum, nil)
     end)
 
     It("releases all nameplate data for a loading screen", function()
@@ -165,7 +222,7 @@ Describe("Runtime diagnostics", function()
         ExpectEqual(assignedHandler, updateHandler)
     end)
 
-    It("collects garbage when a Mythic Plus dungeon completes", function()
+    It("does not expose dungeon completion cleanup", function()
         -- Given
         local namespace = {
             Config = {},
@@ -174,58 +231,12 @@ Describe("Runtime diagnostics", function()
             Rules = {},
         }
         local runtime = LoadAddonFile("Runtime.lua", namespace)
-        local collected = false
 
         -- When
-        runtime:HandleDungeonCleanupEvent(
-            "CHALLENGE_MODE_COMPLETED",
-            function()
-                return false
-            end,
-            function()
-                collected = true
-            end
-        )
+        local cleanupHandler = runtime.HandleDungeonCleanupEvent
 
         -- Then
-        ExpectEqual(collected, true)
-    end)
-
-    It("defers dungeon cleanup until combat ends", function()
-        -- Given
-        local namespace = {
-            Config = {},
-            CombatState = {},
-            FrameLayout = {},
-            Rules = {},
-        }
-        local runtime = LoadAddonFile("Runtime.lua", namespace)
-        local collected = false
-        runtime:HandleDungeonCleanupEvent(
-            "CHALLENGE_MODE_COMPLETED",
-            function()
-                return true
-            end,
-            function()
-                collected = true
-            end
-        )
-        local collectedDuringCombat = collected
-
-        -- When
-        runtime:HandleDungeonCleanupEvent(
-            "PLAYER_REGEN_ENABLED",
-            function()
-                return false
-            end,
-            function()
-                collected = true
-            end
-        )
-
-        -- Then
-        ExpectEqual(collectedDuringCombat, false)
-        ExpectEqual(collected, true)
+        ExpectEqual(cleanupHandler, nil)
     end)
 
     It("runs maintenance only after its refresh interval", function()

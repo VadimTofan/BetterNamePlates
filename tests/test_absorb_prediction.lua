@@ -1,5 +1,5 @@
 Describe("Enemy absorb prediction", function()
-    It("configures and applies absorb values without arithmetic", function()
+    It("keeps real health visible while absorb drains from its snapshot", function()
         -- Given
         local namespace = {}
         local absorbPrediction = LoadAddonFile(
@@ -7,6 +7,7 @@ Describe("Enemy absorb prediction", function()
             namespace
         )
         local calls = {}
+        local currentAbsorb = "initial-absorb"
         local calculator = {
             SetDamageAbsorbClampMode = function(_, value)
                 calls.damageClamp = value
@@ -29,11 +30,11 @@ Describe("Enemy absorb prediction", function()
             GetCurrentHealth = function()
                 return "secret-health"
             end,
-            GetMaximumDamageAbsorbs = function()
-                return "secret-maximum"
+            GetMaximumHealth = function()
+                return "secret-maximum-health"
             end,
-            GetDamageAbsorbs = function()
-                return "secret-absorb"
+            GetTotalDamageAbsorbs = function()
+                return currentAbsorb
             end,
         }
         local healthBar = {
@@ -60,7 +61,7 @@ Describe("Enemy absorb prediction", function()
                 calls.prediction = {unit, healer, receivedCalculator}
             end,
             enums = {
-                maximumHealthWithAbsorbs = "with-absorbs",
+                defaultMaximumHealth = "default-health",
                 maximumHealthClamp = "maximum-health",
                 missingHealthClamp = "missing-health",
                 healAbsorbMaximumHealth = "heal-maximum",
@@ -69,6 +70,7 @@ Describe("Enemy absorb prediction", function()
                 immediate = "immediate",
             },
         }
+        local snapshot = {}
 
         -- When
         absorbPrediction:Configure(calculator, api.enums)
@@ -77,18 +79,32 @@ Describe("Enemy absorb prediction", function()
             calculator,
             healthBar,
             absorbBar,
-            api
+            api,
+            snapshot,
+            true
+        )
+        currentAbsorb = "remaining-absorb"
+        absorbPrediction:Update(
+            "nameplate4",
+            calculator,
+            healthBar,
+            absorbBar,
+            api,
+            snapshot,
+            false
         )
 
         -- Then
         ExpectEqual(calls.prediction[1], "nameplate4")
         ExpectEqual(calls.prediction[3], calculator)
-        ExpectEqual(calls.maximumMode, "with-absorbs")
+        ExpectEqual(calls.maximumMode, "default-health")
         ExpectEqual(calls.damageClamp, "missing-health")
-        ExpectEqual(calls.healthRange[2], "secret-maximum")
+        ExpectEqual(calls.healthRange[2], "secret-maximum-health")
         ExpectEqual(calls.healthValue[1], "secret-health")
-        ExpectEqual(calls.absorbRange[2], "secret-maximum")
-        ExpectEqual(calls.absorbValue[1], "secret-absorb")
-        ExpectEqual(calls.absorbAlpha, "secret-absorb")
+        ExpectEqual(calls.absorbRange[2], "initial-absorb")
+        ExpectEqual(calls.absorbValue[1], "remaining-absorb")
+        ExpectEqual(calls.absorbAlpha, "remaining-absorb")
+        ExpectEqual(snapshot.maximum, "initial-absorb")
+        ExpectEqual(snapshot.captured, true)
     end)
 end)

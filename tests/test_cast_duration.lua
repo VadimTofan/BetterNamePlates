@@ -60,7 +60,7 @@ Describe("Secret-safe cast durations", function()
         ExpectEqual(progress, 2.5)
     end)
 
-    It("binds status bars to the remaining-time direction", function()
+    It("binds status bars to the requested timer direction", function()
         -- Given
         local namespace = {}
         local castDuration = LoadAddonFile("CastDuration.lua", namespace)
@@ -95,7 +95,23 @@ Describe("Secret-safe cast durations", function()
         ExpectEqual(receivedDirection, 1)
     end)
 
-    It("keeps the cooldown overlay inside the remaining cast fill", function()
+    It("selects elapsed time so casts fill from left to right", function()
+        -- Given
+        local namespace = {}
+        local castDuration = LoadAddonFile("CastDuration.lua", namespace)
+        local timerDirections = {
+            ElapsedTime = 0,
+            RemainingTime = 1,
+        }
+
+        -- When
+        local direction = castDuration:GetTimerDirection(timerDirections)
+
+        -- Then
+        ExpectEqual(direction, timerDirections.ElapsedTime)
+    end)
+
+    It("lays out the cooldown timeline from left to right", function()
         -- Given
         local namespace = {}
         local castDuration = LoadAddonFile("CastDuration.lua", namespace)
@@ -104,20 +120,23 @@ Describe("Secret-safe cast durations", function()
         local layout = castDuration:GetCooldownOverlayLayout()
 
         -- Then
-        ExpectEqual(layout.point, "RIGHT")
-        ExpectEqual(layout.relativePoint, "RIGHT")
-        ExpectEqual(layout.reverseFill, true)
-        ExpectEqual(layout.markerAnchor, "RIGHT")
-        ExpectEqual(layout.markerPoint, "LEFT")
+        ExpectEqual(layout.point, "LEFT")
+        ExpectEqual(layout.relativePoint, "LEFT")
+        ExpectEqual(layout.reverseFill, false)
+        ExpectEqual(layout.markerAnchor, "CENTER")
+        ExpectEqual(layout.markerPoint, "RIGHT")
     end)
 
-    It("snapshots the kick-ready marker position", function()
+    It("snapshots the kick-ready marker and unavailable segment", function()
         -- Given
         local namespace = {}
         local castDuration = LoadAddonFile("CastDuration.lua", namespace)
         local minimum
         local maximum
         local markerValue
+        local overlayMinimum
+        local overlayMaximum
+        local overlayValue
         local markerTrack = {
             SetMinMaxValues = function(_, receivedMinimum, receivedMaximum)
                 minimum = receivedMinimum
@@ -127,6 +146,15 @@ Describe("Secret-safe cast durations", function()
                 markerValue = receivedValue
             end,
         }
+        local overlay = {
+            SetMinMaxValues = function(_, receivedMinimum, receivedMaximum)
+                overlayMinimum = receivedMinimum
+                overlayMaximum = receivedMaximum
+            end,
+            SetValue = function(_, receivedValue)
+                overlayValue = receivedValue
+            end,
+        }
         local cooldown = {
             GetRemainingDuration = function()
                 return 2
@@ -134,12 +162,20 @@ Describe("Secret-safe cast durations", function()
         }
 
         -- When
-        castDuration:PlaceCooldownMarker(markerTrack, 5, cooldown)
+        castDuration:PlaceCooldownMarker(
+            markerTrack,
+            overlay,
+            5,
+            cooldown
+        )
 
         -- Then
         ExpectEqual(minimum, 0)
         ExpectEqual(maximum, 5)
         ExpectEqual(markerValue, 2)
+        ExpectEqual(overlayMinimum, 0)
+        ExpectEqual(overlayMaximum, 5)
+        ExpectEqual(overlayValue, 2)
     end)
 
     It("places kick markers only when a cast starts", function()

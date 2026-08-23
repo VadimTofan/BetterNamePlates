@@ -15,24 +15,25 @@ function AbsorbPrediction:Update(
     calculator,
     healthBar,
     absorbBar,
-    api
+    api,
+    snapshot,
+    shouldCapture
 )
     api.predict(unit, nil, calculator)
 
     calculator:SetMaximumHealthMode(
-        api.enums.maximumHealthWithAbsorbs
+        api.enums.defaultMaximumHealth
     )
     calculator:SetDamageAbsorbClampMode(
         api.enums.maximumHealthClamp
     )
 
     local currentHealth = calculator:GetCurrentHealth()
-    local maximumHealthWithAbsorbs =
-        calculator:GetMaximumDamageAbsorbs()
+    local maximumHealth = calculator:GetMaximumHealth()
 
     healthBar:SetMinMaxValues(
         0,
-        maximumHealthWithAbsorbs,
+        maximumHealth,
         api.enums.immediate
     )
     healthBar:SetValue(currentHealth, api.enums.immediate)
@@ -41,12 +42,19 @@ function AbsorbPrediction:Update(
         api.enums.missingHealthClamp
     )
 
-    local absorbAmount = calculator:GetDamageAbsorbs()
+    local absorbAmount = calculator:GetTotalDamageAbsorbs()
+
+    if shouldCapture and not snapshot.captured then
+        snapshot.maximum = absorbAmount
+        snapshot.captured = true
+    end
+
+    local maximumAbsorb = snapshot.maximum or absorbAmount
 
     absorbBar:SetAlpha(absorbAmount)
     absorbBar:SetMinMaxValues(
         0,
-        maximumHealthWithAbsorbs,
+        maximumAbsorb,
         api.enums.immediate
     )
     absorbBar:SetValue(absorbAmount, api.enums.immediate)

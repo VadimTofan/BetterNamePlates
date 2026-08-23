@@ -29,6 +29,10 @@ function CastDuration:GetProgress(duration)
     return duration:GetRemainingDuration()
 end
 
+function CastDuration:GetTimerDirection(timerDirections)
+    return timerDirections.ElapsedTime
+end
+
 function CastDuration:BindRemainingTime(
     statusBar,
     duration,
@@ -44,21 +48,26 @@ end
 
 function CastDuration:GetCooldownOverlayLayout()
     return {
-        point = "RIGHT",
-        relativePoint = "RIGHT",
-        reverseFill = true,
-        markerAnchor = "RIGHT",
-        markerPoint = "LEFT",
+        point = "LEFT",
+        relativePoint = "LEFT",
+        reverseFill = false,
+        markerAnchor = "CENTER",
+        markerPoint = "RIGHT",
     }
 end
 
 function CastDuration:PlaceCooldownMarker(
     markerTrack,
+    overlay,
     totalDuration,
     cooldown
 )
+    local remainingDuration = cooldown:GetRemainingDuration()
+
     markerTrack:SetMinMaxValues(0, totalDuration)
-    markerTrack:SetValue(cooldown:GetRemainingDuration())
+    markerTrack:SetValue(remainingDuration)
+    overlay:SetMinMaxValues(0, totalDuration)
+    overlay:SetValue(remainingDuration)
 end
 
 function CastDuration:ShouldPlaceCooldownMarker(event)

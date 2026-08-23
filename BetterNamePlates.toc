@@ -2,7 +2,7 @@
 ## Title: BetterNamePlates
 ## Notes: Opinionated, lightweight Mythic+ nameplates.
 ## Author: Vadim
-## Version: 0.2.1
+## Version: 0.2.2
 ## X-Curse-Project-ID: 1664307
 ## IconTexture: Interface\AddOns\BetterNamePlates\icon.png
 

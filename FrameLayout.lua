@@ -31,6 +31,10 @@ function FrameLayout:GetCastTextAnchor(leftPadding, bottomPadding)
     }
 end
 
+function FrameLayout:ShouldClipHealthChildren()
+    return false
+end
+
 namespace.FrameLayout = FrameLayout
 
 return FrameLayout

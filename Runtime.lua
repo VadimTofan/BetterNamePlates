@@ -1,6 +1,7 @@
 local _, namespace = ...
 
 local Config = namespace.Config
+local AbsorbPrediction = namespace.AbsorbPrediction
 local Appearance = namespace.Appearance
 local AuraDisplay = namespace.AuraDisplay
 local CastDuration = namespace.CastDuration
@@ -35,7 +36,6 @@ end
 local function createBorder(frame, thickness, color)
     thickness = thickness or Config.borderThickness
     color = color or Config.colors.border
-
     for _, edge in ipairs({"TOP", "BOTTOM", "LEFT", "RIGHT"}) do
         local border = frame:CreateTexture(nil, "OVERLAY")
         border:SetColorTexture(color[1], color[2], color[3], color[4])
@@ -186,6 +186,9 @@ local function createPlateView(basePlate)
     view.health:SetSize(Config.healthWidth, Config.healthHeight)
     view.health:SetPoint("TOP", view, "TOP")
     view.health:SetStatusBarTexture(Config.texture)
+    view.health:SetClipsChildren(
+        FrameLayout:ShouldClipHealthChildren()
+    )
     createBorder(view.health)
 
     view.healthBackground = view.health:CreateTexture(nil, "BACKGROUND")
@@ -196,9 +199,67 @@ local function createPlateView(basePlate)
         Config.colors.background[3],
         Config.colors.background[4]
     )
+
+    if CreateUnitHealPredictionCalculator and
+        UnitGetDetailedHealPrediction then
+        view.absorbCalculator = CreateUnitHealPredictionCalculator()
+        view.absorbClip = CreateFrame("Frame", nil, view.health)
+        view.absorbClip:SetAllPoints(view.health)
+        view.absorbClip:SetClipsChildren(true)
+        view.absorbClip:SetFrameLevel(view.health:GetFrameLevel())
+
+        view.absorb = CreateFrame("StatusBar", nil, view.absorbClip)
+        view.absorb:SetFrameLevel(view.health:GetFrameLevel())
+        view.absorb:SetWidth(Config.healthWidth)
+        view.absorb:SetPoint(
+            "TOPLEFT",
+            view.health:GetStatusBarTexture(),
+            "TOPRIGHT"
+        )
+        view.absorb:SetPoint(
+            "BOTTOMLEFT",
+            view.health:GetStatusBarTexture(),
+            "BOTTOMRIGHT"
+        )
+        view.absorb:SetStatusBarTexture(
+            "Interface\\RaidFrame\\Shield-Fill"
+        )
+
+        AbsorbPrediction:Configure(view.absorbCalculator, {
+            maximumHealthClamp =
+                Enum.UnitDamageAbsorbClampMode.MaximumHealth,
+            healAbsorbMaximumHealth =
+                Enum.UnitHealAbsorbClampMode.MaximumHealth,
+            healAbsorbTotal = Enum.UnitHealAbsorbMode.Total,
+            incomingHealMissingHealth =
+                Enum.UnitIncomingHealClampMode.MissingHealth,
+        })
+    end
+
     view.targetIndicator = createTargetIndicator(view.health)
     view.hoverIndicator = createSelectionBorder(view.health)
     view.raidTargetIcon = createRaidTargetIndicator(view.health)
+
+    view.focusOverlay = view.health:CreateTexture(nil, "OVERLAY", nil, 2)
+    view.focusOverlay:SetAllPoints(view.health)
+    view.focusOverlay:SetTexture(Config.focusTexture)
+    view.focusOverlay:SetVertexColor(
+        Config.colors.focusOverlay[1],
+        Config.colors.focusOverlay[2],
+        Config.colors.focusOverlay[3],
+        Config.colors.focusOverlay[4]
+    )
+    view.focusOverlay:SetAlpha(0)
+
+    view.focusBorder = CreateFrame("Frame", nil, view.health)
+    view.focusBorder:SetAllPoints(view.health)
+    view.focusBorder:SetFrameLevel(view.health:GetFrameLevel() + 2)
+    createBorder(
+        view.focusBorder,
+        Config.borderThickness,
+        Config.colors.focus
+    )
+    view.focusBorder:Hide()
 
     view.name = view.health:CreateFontString(nil, "OVERLAY")
     view.name:SetFont(
@@ -898,8 +959,29 @@ function Runtime:UpdateHealth(unit)
     setStatusBarColor(view.health, Config.colors[colorKey])
     view.name:SetText(DisplayText:ShortenName(UnitName(unit)))
 
-    view.health:SetMinMaxValues(0, maximum)
-    view.health:SetValue(health)
+    if view.absorbCalculator then
+        AbsorbPrediction:Update(
+            unit,
+            view.absorbCalculator,
+            view.health,
+            view.absorb,
+            {
+                predict = UnitGetDetailedHealPrediction,
+                enums = {
+                    maximumHealthWithAbsorbs =
+                        Enum.UnitMaximumHealthMode.WithAbsorbs,
+                    maximumHealthClamp =
+                        Enum.UnitDamageAbsorbClampMode.MaximumHealth,
+                    missingHealthClamp = Enum.UnitDamageAbsorbClampMode
+                        .MissingHealthWithoutIncomingHeals,
+                    immediate = Enum.StatusBarInterpolation.Immediate,
+                },
+            }
+        )
+    else
+        view.health:SetMinMaxValues(0, maximum)
+        view.health:SetValue(health)
+    end
 
     if issecretvalue and
         (issecretvalue(health) or issecretvalue(maximum)) then
@@ -1131,8 +1213,20 @@ function Runtime:UpdateSelectionIndicators()
             UnitIsUnit(plateUnit, "mouseover"),
             false
         )
+        local isFocus = DisplayText:SafeValue(
+            UnitIsUnit(plateUnit, "focus"),
+            false
+        )
+        local focusStyle = Appearance:GetFocusStyle(isFocus)
 
-        view:SetAlpha(Appearance:GetTargetAlpha(isTarget))
+        view:SetAlpha(focusStyle.alpha)
+        view.focusOverlay:SetAlpha(focusStyle.overlayAlpha)
+        view.focusBorder:SetShown(
+            focusStyle.borderColorKey == "focus"
+        )
+        view.health:GetStatusBarTexture():SetDesaturated(
+            focusStyle.desaturated
+        )
         view.targetIndicator:SetShown(
             TargetIndicator:ShouldShow(isTarget)
         )
@@ -1225,7 +1319,11 @@ function Runtime:OnEvent(event, unit, _, spellID)
         self:AddPlate(unit)
     elseif event == "NAME_PLATE_UNIT_REMOVED" then
         self:RemovePlate(unit)
-    elseif event == "UNIT_HEALTH" or event == "UNIT_FACTION" or
+    elseif event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH" or
+        event == "UNIT_HEAL_PREDICTION" or
+        event == "UNIT_ABSORB_AMOUNT_CHANGED" or
+        event == "UNIT_HEAL_ABSORB_AMOUNT_CHANGED" or
+        event == "UNIT_FACTION" or
         event == "UNIT_THREAT_SITUATION_UPDATE" then
         self:UpdateHealth(unit)
     elseif event == "UNIT_AURA" then
@@ -1254,6 +1352,7 @@ function Runtime:OnEvent(event, unit, _, spellID)
     elseif event:find("UNIT_SPELLCAST", 1, true) == 1 then
         self:UpdateCast(unit, event)
     elseif event == "PLAYER_TARGET_CHANGED" or
+        event == "PLAYER_FOCUS_CHANGED" or
         event == "UPDATE_MOUSEOVER_UNIT" then
         self:UpdateSelectionIndicators()
     end
@@ -1287,6 +1386,7 @@ function Runtime:Enable()
         "NAME_PLATE_UNIT_REMOVED",
         "PLAYER_ENTERING_WORLD",
         "PLAYER_TARGET_CHANGED",
+        "PLAYER_FOCUS_CHANGED",
         "PLAYER_REGEN_ENABLED",
         "RAID_TARGET_UPDATE",
         "UPDATE_MOUSEOVER_UNIT",
@@ -1295,6 +1395,10 @@ function Runtime:Enable()
         "TRAIT_CONFIG_UPDATED",
         "SPELLS_CHANGED",
         "UNIT_HEALTH",
+        "UNIT_MAXHEALTH",
+        "UNIT_HEAL_PREDICTION",
+        "UNIT_ABSORB_AMOUNT_CHANGED",
+        "UNIT_HEAL_ABSORB_AMOUNT_CHANGED",
         "UNIT_FACTION",
         "UNIT_AURA",
         "UNIT_THREAT_SITUATION_UPDATE",

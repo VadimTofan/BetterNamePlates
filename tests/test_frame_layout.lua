@@ -80,4 +80,16 @@ Describe("Nameplate frame layout", function()
         ExpectEqual(anchor.x, 4)
         ExpectEqual(anchor.y, 2)
     end)
+
+    It("does not clip raid markers at the health bar boundary", function()
+        -- Given
+        local namespace = {}
+        local frameLayout = LoadAddonFile("FrameLayout.lua", namespace)
+
+        -- When
+        local shouldClip = frameLayout:ShouldClipHealthChildren()
+
+        -- Then
+        ExpectEqual(shouldClip, false)
+    end)
 end)

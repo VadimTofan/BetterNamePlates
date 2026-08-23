@@ -92,4 +92,32 @@ Describe("Profile unit coloring", function()
         -- Then
         ExpectEqual(alpha, 1)
     end)
+
+    It("matches the profile focus overlay without resizing or fading", function()
+        -- Given
+        local isFocus = true
+
+        -- When
+        local style = appearance:GetFocusStyle(isFocus)
+
+        -- Then
+        ExpectEqual(style.alpha, 1)
+        ExpectEqual(style.overlayAlpha, 1)
+        ExpectEqual(style.borderColorKey, "focus")
+        ExpectEqual(style.desaturated, false)
+    end)
+
+    It("keeps ordinary units visually unchanged by focus styling", function()
+        -- Given
+        local isFocus = false
+
+        -- When
+        local style = appearance:GetFocusStyle(isFocus)
+
+        -- Then
+        ExpectEqual(style.alpha, 1)
+        ExpectEqual(style.overlayAlpha, 0)
+        ExpectEqual(style.borderColorKey, "border")
+        ExpectEqual(style.desaturated, false)
+    end)
 end)

@@ -14,6 +14,8 @@ local Config = {
     targetArrowHeightScale = 1.36,
     targetArrowTexture =
         "Interface\\AddOns\\BetterNamePlates\\media\\arrow_double_right_64",
+    focusTexture =
+        "Interface\\AddOns\\BetterNamePlates\\media\\focus_overlay",
     castHeight = 11.2,
     castIconSize = 11.2,
     castIconGap = 1,
@@ -40,6 +42,8 @@ local Config = {
         background = {0.2117647, 0.2117647, 0.2117647, 1},
         border = {0, 0, 0, 1},
         target = {0.9921568627451, 1, 0.97254901960784, 1},
+        focus = {0, 1, 0.94117653369904, 1},
+        focusOverlay = {0, 0, 0, 0.501960813999176},
         safe = {0.745098, 0.188235, 0.113725, 1},
         neutral = {1, 0.82, 0, 1},
         aggro = {0.866667, 0.435294, 0, 1},

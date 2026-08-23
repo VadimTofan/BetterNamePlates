@@ -23,7 +23,7 @@ function NpcClassification:GetColorKey(unit)
         return "safe"
     end
 
-    if unit.isKnownCaster or unit.classBase == "PALADIN" or
+    if unit.classBase == "PALADIN" or
         unit.powerType ~= nil and unit.powerType == unit.manaPowerType or
         unit.manaMaximum and unit.manaMaximum > 0 then
         return "caster"

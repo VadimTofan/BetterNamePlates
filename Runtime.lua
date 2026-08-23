@@ -763,7 +763,6 @@ function Runtime:UpdateHealth(unit)
         playerLevel = UnitLevel("player"),
         effectiveLevel = effectiveLevel,
         isLieutenant = isLieutenant,
-        isKnownCaster = view.isKnownCaster,
         classBase = classBase,
         powerType = powerType,
         powerToken = powerToken,
@@ -880,7 +879,6 @@ function Runtime:UpdateCast(unit, event)
     view.castText:SetText(name)
     view.castIcon:SetTexture(textureID)
     view.castIconFrame:Show()
-    view.isKnownCaster = true
     view.interruptCooldown = self:GetInterruptCooldown()
 
     if view.interruptCooldown and

@@ -2,7 +2,7 @@
   "name": "better-name-plates",
   "private": true,
   "scripts": {
-    "test": "fengari tests/run.lua"
+    "test": "fengari tests/run.lua && node tests/release-config.test.cjs"
   },
   "devDependencies": {
     "cbor-x": "^1.6.5",

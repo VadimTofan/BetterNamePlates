@@ -1,0 +1,10 @@
+package-as: BetterNamePlates
+
+ignore:
+  - .github
+  - .gitignore
+  - .pkgmeta
+  - package.json
+  - package-lock.json
+  - profile.txt
+  - tests

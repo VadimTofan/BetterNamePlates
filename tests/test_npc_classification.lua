@@ -19,6 +19,21 @@ Describe("Jundies NPC classification", function()
         ExpectEqual(result, "caster")
     end)
 
+    It("keeps ordinary hostile mobs red even when they use mana", function()
+        -- Given
+        local unit = {
+            classification = "normal",
+            powerType = 0,
+            manaPowerType = 0,
+        }
+
+        -- When
+        local result = npcClassification:GetColorKey(unit)
+
+        -- Then
+        ExpectEqual(result, "safe")
+    end)
+
     It("does not classify a unit as a caster from observed casts alone", function()
         -- Given
         local unit = {

@@ -19,6 +19,10 @@ function NpcClassification:GetColorKey(unit)
         return "miniboss"
     end
 
+    if unit.classification == "normal" then
+        return "safe"
+    end
+
     if unit.powerToken == FEL_INFUSION_POWER_TOKEN then
         return "safe"
     end

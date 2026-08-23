@@ -4,7 +4,7 @@ Describe("Profile unit coloring", function()
 
     It("uses the caster color for known casters without aggro", function()
         -- Given
-        local classification = "normal"
+        local classification = "elite"
         local isKnownCaster = true
         local threatState = "safe"
 
@@ -19,7 +19,7 @@ Describe("Profile unit coloring", function()
         ExpectEqual(colorKey, "caster")
     end)
 
-    It("uses yellow for ordinary non-caster mobs without aggro", function()
+    It("uses red for ordinary hostile mobs without aggro", function()
         -- Given
         local classification = "normal"
         local isKnownCaster = false
@@ -33,7 +33,7 @@ Describe("Profile unit coloring", function()
         )
 
         -- Then
-        ExpectEqual(colorKey, "normal")
+        ExpectEqual(colorKey, "safe")
     end)
 
     It("uses neutral yellow before existing classification colors", function()

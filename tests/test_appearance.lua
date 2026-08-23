@@ -19,6 +19,23 @@ Describe("Profile unit coloring", function()
         ExpectEqual(colorKey, "caster")
     end)
 
+    It("uses yellow for ordinary non-caster mobs without aggro", function()
+        -- Given
+        local classification = "normal"
+        local isKnownCaster = false
+        local threatState = "safe"
+
+        -- When
+        local colorKey = appearance:GetHealthColorKey(
+            classification,
+            isKnownCaster,
+            threatState
+        )
+
+        -- Then
+        ExpectEqual(colorKey, "normal")
+    end)
+
     It("uses neutral yellow before existing classification colors", function()
         -- Given
         local isIdleNeutral = true

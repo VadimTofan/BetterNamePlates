@@ -51,6 +51,10 @@ function Appearance:GetHealthColorKey(
         return "caster"
     end
 
+    if classification == "normal" and threatState == "safe" then
+        return "normal"
+    end
+
     return threatState
 end
 

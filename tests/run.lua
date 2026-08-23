@@ -44,6 +44,7 @@ dofile("tests/test_health_format.lua")
 dofile("tests/test_display_text.lua")
 dofile("tests/test_npc_classification.lua")
 dofile("tests/test_target_indicator.lua")
+dofile("tests/test_raid_target_indicator.lua")
 dofile("tests/test_appearance.lua")
 
 for _, testCase in ipairs(tests) do

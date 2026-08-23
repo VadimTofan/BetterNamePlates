@@ -4,6 +4,7 @@ local AuraDisplay = {}
 
 local EXCLUDED_SPELL_IDS = {
     [33917] = true,
+    [430589] = true,
     [1270065] = true,
     [1287555] = true,
     [1287663] = true,

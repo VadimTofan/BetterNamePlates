@@ -9,8 +9,13 @@ end
 function Appearance:GetHealthColorKey(
     classification,
     isKnownCaster,
-    threatState
+    threatState,
+    isIdleNeutral
 )
+    if isIdleNeutral then
+        return "neutral"
+    end
+
     if threatState == "aggro" or threatState == "contested" or
         threatState == "lost" then
         return threatState

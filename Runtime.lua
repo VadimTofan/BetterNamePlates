@@ -11,6 +11,7 @@ local HealthFormat = namespace.HealthFormat
 local Interrupts = namespace.Interrupts
 local NameplateStacking = namespace.NameplateStacking
 local NpcClassification = namespace.NpcClassification
+local RaidTargetIndicator = namespace.RaidTargetIndicator
 local Rules = namespace.Rules
 local TargetIndicator = namespace.TargetIndicator
 
@@ -119,6 +120,29 @@ local function createTargetIndicator(healthBar)
     return indicator
 end
 
+local function createRaidTargetIndicator(healthBar)
+    local layout = RaidTargetIndicator:GetLayout()
+    local indicator = CreateFrame("Frame", nil, healthBar)
+
+    indicator:SetAllPoints(healthBar)
+    indicator:SetFrameLevel(healthBar:GetFrameLevel() + 4)
+
+    local icon = indicator:CreateTexture(nil, "OVERLAY")
+
+    icon:SetTexture(layout.texture)
+    icon:SetSize(layout.size, layout.size)
+    icon:SetPoint(
+        layout.point,
+        healthBar,
+        layout.relativePoint,
+        layout.x,
+        layout.y
+    )
+    icon:Hide()
+
+    return icon
+end
+
 local function createPlateView(basePlate)
     local view = CreateFrame("Frame", nil, basePlate)
     local blizzardUnitFrame = basePlate.UnitFrame
@@ -153,6 +177,7 @@ local function createPlateView(basePlate)
     )
     view.targetIndicator = createTargetIndicator(view.health)
     view.hoverIndicator = createSelectionBorder(view.health)
+    view.raidTargetIcon = createRaidTargetIndicator(view.health)
 
     view.name = view.health:CreateFontString(nil, "OVERLAY")
     view.name:SetFont(
@@ -677,6 +702,10 @@ function Runtime:UpdateHealth(unit)
         UnitThreatSituation("player", unit),
         nil
     )
+    local reaction = DisplayText:SafeValue(
+        UnitReaction(unit, "player"),
+        nil
+    )
     local classification = DisplayText:SafeValue(
         UnitClassification(unit),
         "normal"
@@ -703,6 +732,11 @@ function Runtime:UpdateHealth(unit)
         self:GetPlayerRole(),
         threatStatus
     )
+    local isIdleNeutral = CombatState:IsIdleNeutral(
+        reaction,
+        4,
+        threatStatus
+    )
     local profileColorKey = NpcClassification:GetColorKey({
         playerLevel = UnitLevel("player"),
         effectiveLevel = effectiveLevel,
@@ -725,7 +759,8 @@ function Runtime:UpdateHealth(unit)
     local colorKey = Appearance:GetHealthColorKey(
         appearanceClassification,
         profileColorKey == "caster",
-        threatState
+        threatState,
+        isIdleNeutral
     )
 
     setStatusBarColor(view.health, Config.colors[colorKey])
@@ -881,9 +916,32 @@ function Runtime:AddPlate(unit)
     self.lastAddResult = "added:" .. tostring(unit)
 
     self:UpdateSelectionIndicators()
+    self:UpdateRaidTarget(unit)
     self:UpdateHealth(unit)
     self:UpdateCast(unit)
     self:UpdateAuras(unit)
+end
+
+function Runtime:UpdateRaidTarget(unit)
+    local view = self.activePlates[unit]
+
+    if not view then
+        return
+    end
+
+    local markerIndex = GetRaidTargetIndex(unit)
+
+    RaidTargetIndicator:Apply(
+        view.raidTargetIcon,
+        markerIndex,
+        SetRaidTargetIconTexture
+    )
+end
+
+function Runtime:RefreshRaidTargets()
+    for unit in pairs(self.activePlates) do
+        self:UpdateRaidTarget(unit)
+    end
 end
 
 function Runtime:GetDebugState()
@@ -984,19 +1042,25 @@ function Runtime:OnUpdate(elapsed)
 end
 
 function Runtime:OnEvent(event, unit, _, spellID)
-    if event == "PLAYER_REGEN_ENABLED" and self.stackingPending then
+    if NameplateStacking:ShouldApplyOnEvent(
+        event,
+        self.stackingPending
+    ) then
         self.stackingPending = not NameplateStacking:Apply(
             SetCVar,
-            false
+            InCombatLockdown and InCombatLockdown()
         )
     elseif event == "NAME_PLATE_UNIT_ADDED" then
         self:AddPlate(unit)
     elseif event == "NAME_PLATE_UNIT_REMOVED" then
         self:RemovePlate(unit)
-    elseif event == "UNIT_HEALTH" or event == "UNIT_THREAT_SITUATION_UPDATE" then
+    elseif event == "UNIT_HEALTH" or event == "UNIT_FACTION" or
+        event == "UNIT_THREAT_SITUATION_UPDATE" then
         self:UpdateHealth(unit)
     elseif event == "UNIT_AURA" then
         self:UpdateAuras(unit)
+    elseif event == "RAID_TARGET_UPDATE" then
+        self:RefreshRaidTargets()
     elseif event == "PLAYER_SPECIALIZATION_CHANGED" or
         event == "TRAIT_CONFIG_UPDATED" or event == "SPELLS_CHANGED" then
         self:RefreshInterruptSpell()
@@ -1050,14 +1114,17 @@ function Runtime:Enable()
     local events = {
         "NAME_PLATE_UNIT_ADDED",
         "NAME_PLATE_UNIT_REMOVED",
+        "PLAYER_ENTERING_WORLD",
         "PLAYER_TARGET_CHANGED",
         "PLAYER_REGEN_ENABLED",
+        "RAID_TARGET_UPDATE",
         "UPDATE_MOUSEOVER_UNIT",
         "PLAYER_SPECIALIZATION_CHANGED",
         "SPELL_UPDATE_COOLDOWN",
         "TRAIT_CONFIG_UPDATED",
         "SPELLS_CHANGED",
         "UNIT_HEALTH",
+        "UNIT_FACTION",
         "UNIT_AURA",
         "UNIT_THREAT_SITUATION_UPDATE",
         "UNIT_SPELLCAST_START",

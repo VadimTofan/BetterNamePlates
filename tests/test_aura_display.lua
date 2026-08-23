@@ -109,4 +109,16 @@ Describe("Player debuff display", function()
         -- Then
         ExpectEqual(excludedSpellIDs[1270065], true)
     end)
+
+    It("excludes the Atmospheric Exposure debuff", function()
+        -- Given
+        local namespace = {}
+        local auraDisplay = LoadAddonFile("AuraDisplay.lua", namespace)
+
+        -- When
+        local excludedSpellIDs = auraDisplay:GetExcludedSpellIDs()
+
+        -- Then
+        ExpectEqual(excludedSpellIDs[430589], true)
+    end)
 end)

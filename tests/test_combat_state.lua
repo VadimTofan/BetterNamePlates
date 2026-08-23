@@ -49,6 +49,27 @@ Describe("Combat state presentation", function()
         ExpectEqual(state, "aggro")
     end)
 
+    It("identifies neutral NPCs only before they enter combat", function()
+        -- Given
+        local neutralReaction = 4
+
+        -- When
+        local idleNeutral = combatState:IsIdleNeutral(
+            neutralReaction,
+            neutralReaction,
+            nil
+        )
+        local engagedNeutral = combatState:IsIdleNeutral(
+            neutralReaction,
+            neutralReaction,
+            0
+        )
+
+        -- Then
+        ExpectEqual(idleNeutral, true)
+        ExpectEqual(engagedNeutral, false)
+    end)
+
     It("uses specialization role when no group role is assigned", function()
         -- Given
         local assignedRole = "NONE"

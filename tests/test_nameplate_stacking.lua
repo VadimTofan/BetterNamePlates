@@ -10,6 +10,7 @@ Describe("Nameplate stacking", function()
         -- Then
         ExpectEqual(settings.nameplateOverlapH, "2.0")
         ExpectEqual(settings.nameplateOverlapV, "1.6")
+        ExpectEqual(settings.nameplateMaxDistance, "40")
     end)
 
     It("registers the custom view as the stacking boundary", function()
@@ -51,6 +52,31 @@ Describe("Nameplate stacking", function()
         ExpectEqual(appliedCount, 0)
     end)
 
+    It("refreshes settings after world entry and pending combat", function()
+        -- Given
+        local namespace = {}
+        local stacking = LoadAddonFile("NameplateStacking.lua", namespace)
+
+        -- When
+        local onWorldEntry = stacking:ShouldApplyOnEvent(
+            "PLAYER_ENTERING_WORLD",
+            false
+        )
+        local pendingAfterCombat = stacking:ShouldApplyOnEvent(
+            "PLAYER_REGEN_ENABLED",
+            true
+        )
+        local idleAfterCombat = stacking:ShouldApplyOnEvent(
+            "PLAYER_REGEN_ENABLED",
+            false
+        )
+
+        -- Then
+        ExpectEqual(onWorldEntry, true)
+        ExpectEqual(pendingAfterCombat, true)
+        ExpectEqual(idleAfterCombat, false)
+    end)
+
     It("applies every stacking CVar outside combat", function()
         -- Given
         local namespace = {}
@@ -69,6 +95,7 @@ Describe("Nameplate stacking", function()
         ExpectEqual(wasApplied, true)
         ExpectEqual(applied.nameplateOverlapH, "2.0")
         ExpectEqual(applied.nameplateOverlapV, "1.6")
+        ExpectEqual(applied.nameplateMaxDistance, "40")
     end)
 
     It("reports the live stacking state for diagnostics", function()

@@ -32,6 +32,15 @@ function CombatState:GetThreatState(role, threatStatus)
     return "safe"
 end
 
+function CombatState:IsIdleNeutral(
+    reaction,
+    neutralReaction,
+    threatStatus
+)
+    return reaction ~= nil and reaction == neutralReaction and
+        threatStatus == nil
+end
+
 function CombatState:ResolvePlayerRole(assignedRole, specializationRole)
     if assignedRole and assignedRole ~= "NONE" then
         return assignedRole

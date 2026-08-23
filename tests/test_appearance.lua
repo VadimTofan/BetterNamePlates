@@ -19,6 +19,22 @@ Describe("Profile unit coloring", function()
         ExpectEqual(colorKey, "caster")
     end)
 
+    It("uses neutral yellow before existing classification colors", function()
+        -- Given
+        local isIdleNeutral = true
+
+        -- When
+        local colorKey = appearance:GetHealthColorKey(
+            "rareelite",
+            true,
+            "safe",
+            isIdleNeutral
+        )
+
+        -- Then
+        ExpectEqual(colorKey, "neutral")
+    end)
+
     It("keeps the caster color under secure tank threat", function()
         -- Given
         local classification = "normal"

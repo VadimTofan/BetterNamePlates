@@ -3,6 +3,7 @@ local _, namespace = ...
 local NameplateStacking = {}
 
 local SETTINGS = {
+    nameplateMaxDistance = "40",
     nameplateOverlapH = "2.0",
     nameplateOverlapV = "1.6",
 }
@@ -26,6 +27,11 @@ function NameplateStacking:ApplyBounds(basePlate, customView)
     basePlate:SetStackingBoundsFrame(customView)
 
     return true
+end
+
+function NameplateStacking:ShouldApplyOnEvent(event, pending)
+    return event == "PLAYER_ENTERING_WORLD" or
+        event == "PLAYER_REGEN_ENABLED" and pending == true
 end
 
 function NameplateStacking:Apply(setCVar, inCombat)

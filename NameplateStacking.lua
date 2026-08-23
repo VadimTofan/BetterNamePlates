@@ -6,6 +6,9 @@ local SETTINGS = {
     nameplateMaxDistance = "60",
     nameplateOverlapH = "2.0",
     nameplateOverlapV = "1.2",
+    nameplateShowOffscreen = "0",
+    nameplateTargetRadialPosition = "0",
+    nameplateTargetBehindMaxDistance = "0.1",
 }
 
 function NameplateStacking:GetSettings()

@@ -120,23 +120,18 @@ Describe("Secret-safe cast durations", function()
         local layout = castDuration:GetCooldownOverlayLayout()
 
         -- Then
-        ExpectEqual(layout.point, "LEFT")
-        ExpectEqual(layout.relativePoint, "LEFT")
         ExpectEqual(layout.reverseFill, false)
         ExpectEqual(layout.markerAnchor, "CENTER")
         ExpectEqual(layout.markerPoint, "RIGHT")
     end)
 
-    It("snapshots the kick-ready marker and unavailable segment", function()
+    It("snapshots the kick-ready marker position", function()
         -- Given
         local namespace = {}
         local castDuration = LoadAddonFile("CastDuration.lua", namespace)
         local minimum
         local maximum
         local markerValue
-        local overlayMinimum
-        local overlayMaximum
-        local overlayValue
         local markerTrack = {
             SetMinMaxValues = function(_, receivedMinimum, receivedMaximum)
                 minimum = receivedMinimum
@@ -144,15 +139,6 @@ Describe("Secret-safe cast durations", function()
             end,
             SetValue = function(_, receivedValue)
                 markerValue = receivedValue
-            end,
-        }
-        local overlay = {
-            SetMinMaxValues = function(_, receivedMinimum, receivedMaximum)
-                overlayMinimum = receivedMinimum
-                overlayMaximum = receivedMaximum
-            end,
-            SetValue = function(_, receivedValue)
-                overlayValue = receivedValue
             end,
         }
         local cooldown = {
@@ -164,7 +150,6 @@ Describe("Secret-safe cast durations", function()
         -- When
         castDuration:PlaceCooldownMarker(
             markerTrack,
-            overlay,
             5,
             cooldown
         )
@@ -173,9 +158,6 @@ Describe("Secret-safe cast durations", function()
         ExpectEqual(minimum, 0)
         ExpectEqual(maximum, 5)
         ExpectEqual(markerValue, 2)
-        ExpectEqual(overlayMinimum, 0)
-        ExpectEqual(overlayMaximum, 5)
-        ExpectEqual(overlayValue, 2)
     end)
 
     It("places kick markers only when a cast starts", function()

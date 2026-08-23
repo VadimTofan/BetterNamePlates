@@ -455,21 +455,12 @@ local function createPlateView(basePlate)
     view.castBackground:SetAllPoints()
     setTextureColor(view.castBackground, Config.colors.background)
 
-    view.interruptOverlay = CreateFrame("StatusBar", nil, view.cast)
-    view.interruptOverlay:SetSize(Config.healthWidth, Config.castHeight)
-    view.interruptOverlay:SetFrameLevel(view.cast:GetFrameLevel() + 1)
-    view.interruptOverlay:SetStatusBarTexture(Config.texture)
-    setStatusBarColor(
-        view.interruptOverlay,
-        Config.colors.interruptUnavailableCast
-    )
-
     view.interruptMarkerTrack = CreateFrame("StatusBar", nil, view.cast)
     view.interruptMarkerTrack:SetAllPoints(view.cast)
     view.interruptMarkerTrack:SetFrameLevel(view.cast:GetFrameLevel() + 1)
     view.interruptMarkerTrack:SetStatusBarTexture(Config.texture)
     view.interruptMarkerTrack:SetStatusBarColor(0, 0, 0, 0)
-    view.interruptMarkerTrack:SetReverseFill(true)
+    view.interruptMarkerTrack:SetReverseFill(false)
 
     view.castForeground = CreateFrame("Frame", nil, view.cast)
     view.castForeground:SetAllPoints(view.cast)
@@ -925,7 +916,6 @@ local function updateCastVisual(view, duration, cooldown)
             backgroundBlue,
             1
         )
-        view.interruptOverlay:Hide()
         view.interruptMarkerFrame:Hide()
         return
     end
@@ -966,19 +956,17 @@ local function updateCastVisual(view, duration, cooldown)
         1
     )
 
-    local overlayAlpha = C_CurveUtil.EvaluateColorValueFromBoolean(
+    local markerAlpha = C_CurveUtil.EvaluateColorValueFromBoolean(
         cooldownReady,
         0,
         1
     )
-    overlayAlpha = C_CurveUtil.EvaluateColorValueFromBoolean(
+    markerAlpha = C_CurveUtil.EvaluateColorValueFromBoolean(
         view.castNotInterruptible,
         0,
-        overlayAlpha
+        markerAlpha
     )
-    view.interruptOverlay:SetAlpha(overlayAlpha)
-    view.interruptOverlay:Show()
-    view.interruptMarkerFrame:SetAlpha(overlayAlpha)
+    view.interruptMarkerFrame:SetAlpha(markerAlpha)
     view.interruptMarkerFrame:Show()
 end
 
@@ -1177,18 +1165,9 @@ function Runtime:UpdateCast(unit, event)
     local cooldownOverlayLayout =
         CastDuration:GetCooldownOverlayLayout()
 
-    view.interruptOverlay:ClearAllPoints()
     view.interruptMarkerFrame:ClearAllPoints()
-    view.interruptOverlay:SetReverseFill(
-        cooldownOverlayLayout.reverseFill
-    )
     view.interruptMarkerTrack:SetReverseFill(
         cooldownOverlayLayout.reverseFill
-    )
-    view.interruptOverlay:SetPoint(
-        cooldownOverlayLayout.point,
-        view.cast:GetStatusBarTexture(),
-        cooldownOverlayLayout.relativePoint
     )
     view.interruptMarkerFrame:SetPoint(
         cooldownOverlayLayout.markerAnchor,
@@ -1205,7 +1184,6 @@ function Runtime:UpdateCast(unit, event)
         CastDuration:ShouldPlaceCooldownMarker(event) then
         CastDuration:PlaceCooldownMarker(
             view.interruptMarkerTrack,
-            view.interruptOverlay,
             view.castDuration:GetTotalDuration(),
             view.interruptCooldown
         )

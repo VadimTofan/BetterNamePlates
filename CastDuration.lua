@@ -48,8 +48,6 @@ end
 
 function CastDuration:GetCooldownOverlayLayout()
     return {
-        point = "LEFT",
-        relativePoint = "LEFT",
         reverseFill = false,
         markerAnchor = "CENTER",
         markerPoint = "RIGHT",
@@ -58,7 +56,6 @@ end
 
 function CastDuration:PlaceCooldownMarker(
     markerTrack,
-    overlay,
     totalDuration,
     cooldown
 )
@@ -66,8 +63,6 @@ function CastDuration:PlaceCooldownMarker(
 
     markerTrack:SetMinMaxValues(0, totalDuration)
     markerTrack:SetValue(remainingDuration)
-    overlay:SetMinMaxValues(0, totalDuration)
-    overlay:SetValue(remainingDuration)
 end
 
 function CastDuration:ShouldPlaceCooldownMarker(event)

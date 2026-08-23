@@ -43,6 +43,7 @@ function AbsorbPrediction:Update(
 
     local absorbAmount = calculator:GetDamageAbsorbs()
 
+    absorbBar:SetAlpha(absorbAmount)
     absorbBar:SetMinMaxValues(
         0,
         maximumHealthWithAbsorbs,

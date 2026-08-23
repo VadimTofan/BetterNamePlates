@@ -6,8 +6,8 @@ function Appearance:GetTargetAlpha()
     return 1
 end
 
-function Appearance:GetFocusStyle(isFocus)
-    if isFocus then
+function Appearance:GetFocusStyle(isFocus, isTarget)
+    if isFocus and not isTarget then
         return {
             alpha = 1,
             overlayAlpha = 1,

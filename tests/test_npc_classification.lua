@@ -19,6 +19,58 @@ Describe("Jundies NPC classification", function()
         ExpectEqual(result, "caster")
     end)
 
+    It("shows only elite or boss-like NPC classifications", function()
+        -- Given
+        local classifications = {
+            normal = {classification = "normal"},
+            rare = {classification = "rare"},
+            elite = {classification = "elite"},
+            rareelite = {classification = "rareelite"},
+            worldboss = {classification = "worldboss"},
+            lieutenant = {
+                classification = "normal",
+                isLieutenant = true,
+            },
+            inferredMiniboss = {
+                classification = "normal",
+                playerLevel = 80,
+                effectiveLevel = 81,
+            },
+        }
+
+        -- When
+        local normal = npcClassification:ShouldShowNameplate(
+            classifications.normal
+        )
+        local rare = npcClassification:ShouldShowNameplate(
+            classifications.rare
+        )
+        local elite = npcClassification:ShouldShowNameplate(
+            classifications.elite
+        )
+        local rareelite = npcClassification:ShouldShowNameplate(
+            classifications.rareelite
+        )
+        local worldboss = npcClassification:ShouldShowNameplate(
+            classifications.worldboss
+        )
+        local lieutenant = npcClassification:ShouldShowNameplate(
+            classifications.lieutenant
+        )
+        local inferredMiniboss = npcClassification:ShouldShowNameplate(
+            classifications.inferredMiniboss
+        )
+
+        -- Then
+        ExpectEqual(normal, false)
+        ExpectEqual(rare, false)
+        ExpectEqual(elite, true)
+        ExpectEqual(rareelite, true)
+        ExpectEqual(worldboss, true)
+        ExpectEqual(lieutenant, true)
+        ExpectEqual(inferredMiniboss, true)
+    end)
+
     It("keeps ordinary hostile mobs red even when they use mana", function()
         -- Given
         local unit = {

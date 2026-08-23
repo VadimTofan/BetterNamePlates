@@ -45,6 +45,9 @@ Describe("Enemy absorb prediction", function()
             end,
         }
         local absorbBar = {
+            SetAlpha = function(_, value)
+                calls.absorbAlpha = value
+            end,
             SetMinMaxValues = function(_, minimum, maximum, interpolation)
                 calls.absorbRange = {minimum, maximum, interpolation}
             end,
@@ -86,5 +89,6 @@ Describe("Enemy absorb prediction", function()
         ExpectEqual(calls.healthValue[1], "secret-health")
         ExpectEqual(calls.absorbRange[2], "secret-maximum")
         ExpectEqual(calls.absorbValue[1], "secret-absorb")
+        ExpectEqual(calls.absorbAlpha, "secret-absorb")
     end)
 end)

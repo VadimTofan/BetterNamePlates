@@ -11,7 +11,7 @@ function TargetIndicator:ShouldShowHover(isMouseover, isTarget)
 end
 
 function TargetIndicator:GetHoverRefreshInterval()
-    return 0.05
+    return 0.15
 end
 
 local function roundToTenth(value)

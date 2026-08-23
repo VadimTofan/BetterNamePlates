@@ -161,3 +161,19 @@ Describe("Secret-safe cast durations", function()
         ExpectEqual(duringCooldownRefresh, false)
     end)
 end)
+
+Describe("Cast time formatting", function()
+    It("uses a numeric-only tenths formatter", function()
+        -- Given
+        local namespace = {}
+        local castDuration = LoadAddonFile("CastDuration.lua", namespace)
+
+        -- When
+        local breakpoint = castDuration:GetTimeBreakpoint()
+
+        -- Then
+        ExpectEqual(breakpoint.threshold, 0)
+        ExpectEqual(breakpoint.step, 0.1)
+        ExpectEqual(breakpoint.format, "%.1f")
+    end)
+end)

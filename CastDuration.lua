@@ -2,6 +2,16 @@ local _, namespace = ...
 
 local CastDuration = {}
 
+local TIME_BREAKPOINT = {
+    threshold = 0,
+    step = 0.1,
+    format = "%.1f",
+}
+
+function CastDuration:GetTimeBreakpoint()
+    return TIME_BREAKPOINT
+end
+
 function CastDuration:GetUnitDuration(
     unit,
     isChannel,

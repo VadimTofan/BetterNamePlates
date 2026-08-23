@@ -18,7 +18,74 @@ local TargetIndicator = namespace.TargetIndicator
 
 local Runtime = {
     activePlates = {},
+    activeCasts = {},
+    lightweightPlates = {},
+    lightweightPool = {},
 }
+
+function Runtime:AdvanceRefreshClock(current, elapsed, interval)
+    local accumulated = (current or 0) + elapsed
+
+    if accumulated >= interval then
+        return true, accumulated - interval
+    end
+
+    return false, accumulated
+end
+
+function Runtime:HandleDungeonCleanupEvent(
+    event,
+    isInCombat,
+    collect
+)
+    if event == "CHALLENGE_MODE_COMPLETED" then
+        self.dungeonCleanupPending = true
+    end
+
+    if not self.dungeonCleanupPending or isInCombat() then
+        return
+    end
+
+    self.dungeonCleanupPending = nil
+    collect()
+end
+
+function Runtime:CreateAbsorbUpdateApi()
+    return {
+        predict = UnitGetDetailedHealPrediction,
+        enums = {
+            maximumHealthWithAbsorbs =
+                Enum.UnitMaximumHealthMode.WithAbsorbs,
+            maximumHealthClamp =
+                Enum.UnitDamageAbsorbClampMode.MaximumHealth,
+            missingHealthClamp = Enum.UnitDamageAbsorbClampMode
+                .MissingHealthWithoutIncomingHeals,
+            immediate = Enum.StatusBarInterpolation.Immediate,
+        },
+    }
+end
+
+function Runtime:SetCastActive(unit, view, isActive)
+    if isActive then
+        self.activeCasts[unit] = view
+        return
+    end
+
+    self.activeCasts[unit] = nil
+end
+
+function Runtime:RefreshUpdateDriver()
+    if not self.frame then
+        return
+    end
+
+    local hasTrackedPlates = next(self.activePlates) or
+        next(self.lightweightPlates)
+    local handler = hasTrackedPlates and
+        self.onUpdateHandler or nil
+
+    self.frame:SetScript("OnUpdate", handler)
+end
 
 local function supportsNativeAuraContainers()
     return C_XMLUtil and C_XMLUtil.GetTemplateInfo and
@@ -164,6 +231,122 @@ local function createAuraLayer(healthBar, anchor, frameStrata, frameLevel)
     return layer
 end
 
+local function createAbsorbPrediction(view)
+    if not CreateUnitHealPredictionCalculator or
+        not UnitGetDetailedHealPrediction then
+        return
+    end
+
+    view.absorbCalculator = CreateUnitHealPredictionCalculator()
+    view.absorbClip = CreateFrame("Frame", nil, view.health)
+    view.absorbClip:SetAllPoints(view.health)
+    view.absorbClip:SetClipsChildren(true)
+    view.absorbClip:SetFrameLevel(view.health:GetFrameLevel())
+
+    view.absorb = CreateFrame("StatusBar", nil, view.absorbClip)
+    view.absorb:SetFrameLevel(view.health:GetFrameLevel())
+    view.absorb:SetWidth(Config.healthWidth)
+    view.absorb:SetPoint(
+        "TOPLEFT",
+        view.health:GetStatusBarTexture(),
+        "TOPRIGHT"
+    )
+    view.absorb:SetPoint(
+        "BOTTOMLEFT",
+        view.health:GetStatusBarTexture(),
+        "BOTTOMRIGHT"
+    )
+    view.absorb:SetStatusBarTexture(
+        "Interface\\RaidFrame\\Shield-Fill"
+    )
+
+    AbsorbPrediction:Configure(view.absorbCalculator, {
+        maximumHealthClamp =
+            Enum.UnitDamageAbsorbClampMode.MaximumHealth,
+        healAbsorbMaximumHealth =
+            Enum.UnitHealAbsorbClampMode.MaximumHealth,
+        healAbsorbTotal = Enum.UnitHealAbsorbMode.Total,
+        incomingHealMissingHealth =
+            Enum.UnitIncomingHealClampMode.MissingHealth,
+    })
+end
+
+local function createLightweightView()
+    local view = CreateFrame("Frame")
+    local health = CreateFrame("StatusBar", nil, view)
+
+    view.health = health
+    view:SetSize(Config.healthWidth, Config.healthHeight)
+    health:SetAllPoints(view)
+    health:SetStatusBarTexture(Config.texture)
+    health:SetStatusBarColor(
+        Config.colors.safe[1],
+        Config.colors.safe[2],
+        Config.colors.safe[3],
+        Config.colors.safe[4]
+    )
+    createBorder(health)
+
+    local background = health:CreateTexture(nil, "BACKGROUND")
+
+    background:SetAllPoints(health)
+    background:SetColorTexture(
+        Config.colors.background[1],
+        Config.colors.background[2],
+        Config.colors.background[3],
+        Config.colors.background[4]
+    )
+    createAbsorbPrediction(view)
+
+    local name = health:CreateFontString(nil, "OVERLAY")
+
+    view.name = name
+    name:SetFont(Config.font, Config.nameFontSize, Config.nameFontFlags)
+    name:SetShadowColor(
+        Config.nameShadowColor[1],
+        Config.nameShadowColor[2],
+        Config.nameShadowColor[3],
+        Config.nameShadowColor[4]
+    )
+    name:SetShadowOffset(
+        Config.nameShadowOffset,
+        -Config.nameShadowOffset
+    )
+    name:SetPoint(
+        "LEFT",
+        health,
+        "LEFT",
+        Config.contentPadding,
+        0
+    )
+    name:SetWidth(Config.healthWidth - Config.contentPadding * 2)
+    name:SetJustifyH("LEFT")
+
+    return view
+end
+
+local function attachLightweightView(view, basePlate, unit)
+    local blizzardUnitFrame = basePlate.UnitFrame
+    local blizzardFrameLevel = blizzardUnitFrame and
+        blizzardUnitFrame:GetFrameLevel() or basePlate:GetFrameLevel()
+
+    view:SetParent(basePlate)
+    view:SetFrameStrata(
+        blizzardUnitFrame and blizzardUnitFrame:GetFrameStrata() or
+            basePlate:GetFrameStrata()
+    )
+    view:SetFrameLevel(FrameLayout:GetOverlayLevel(blizzardFrameLevel))
+    if view.SetIgnoreParentScale then
+        view:SetIgnoreParentScale(true)
+    end
+    view:SetScale(Config.scale)
+    view:ClearAllPoints()
+    view:SetPoint("CENTER", basePlate, "CENTER", 0, Config.plateOffsetY)
+    view.name:SetText(DisplayText:ShortenName(UnitName(unit)))
+    view.unit = unit
+    view.blizzardUnitFrame = blizzardUnitFrame
+end
+
 local function createPlateView(basePlate)
     local view = CreateFrame("Frame", nil, basePlate)
     local blizzardUnitFrame = basePlate.UnitFrame
@@ -200,41 +383,7 @@ local function createPlateView(basePlate)
         Config.colors.background[4]
     )
 
-    if CreateUnitHealPredictionCalculator and
-        UnitGetDetailedHealPrediction then
-        view.absorbCalculator = CreateUnitHealPredictionCalculator()
-        view.absorbClip = CreateFrame("Frame", nil, view.health)
-        view.absorbClip:SetAllPoints(view.health)
-        view.absorbClip:SetClipsChildren(true)
-        view.absorbClip:SetFrameLevel(view.health:GetFrameLevel())
-
-        view.absorb = CreateFrame("StatusBar", nil, view.absorbClip)
-        view.absorb:SetFrameLevel(view.health:GetFrameLevel())
-        view.absorb:SetWidth(Config.healthWidth)
-        view.absorb:SetPoint(
-            "TOPLEFT",
-            view.health:GetStatusBarTexture(),
-            "TOPRIGHT"
-        )
-        view.absorb:SetPoint(
-            "BOTTOMLEFT",
-            view.health:GetStatusBarTexture(),
-            "BOTTOMRIGHT"
-        )
-        view.absorb:SetStatusBarTexture(
-            "Interface\\RaidFrame\\Shield-Fill"
-        )
-
-        AbsorbPrediction:Configure(view.absorbCalculator, {
-            maximumHealthClamp =
-                Enum.UnitDamageAbsorbClampMode.MaximumHealth,
-            healAbsorbMaximumHealth =
-                Enum.UnitHealAbsorbClampMode.MaximumHealth,
-            healAbsorbTotal = Enum.UnitHealAbsorbMode.Total,
-            incomingHealMissingHealth =
-                Enum.UnitIncomingHealClampMode.MissingHealth,
-        })
-    end
+    createAbsorbPrediction(view)
 
     view.targetIndicator = createTargetIndicator(view.health)
     view.hoverIndicator = createSelectionBorder(view.health)
@@ -305,7 +454,13 @@ local function createPlateView(basePlate)
 
     view.cast = CreateFrame("StatusBar", nil, view)
     view.cast:SetSize(Config.healthWidth, Config.castHeight)
-    view.cast:SetPoint("TOP", view.health, "BOTTOM", 0, -1)
+    view.cast:SetPoint(
+        "TOP",
+        view.health,
+        "BOTTOM",
+        0,
+        -Config.castGap
+    )
     view.cast:SetStatusBarTexture(Config.texture)
     view.cast:SetClipsChildren(true)
     view.cast:Hide()
@@ -959,29 +1114,7 @@ function Runtime:UpdateHealth(unit)
     setStatusBarColor(view.health, Config.colors[colorKey])
     view.name:SetText(DisplayText:ShortenName(UnitName(unit)))
 
-    if view.absorbCalculator then
-        AbsorbPrediction:Update(
-            unit,
-            view.absorbCalculator,
-            view.health,
-            view.absorb,
-            {
-                predict = UnitGetDetailedHealPrediction,
-                enums = {
-                    maximumHealthWithAbsorbs =
-                        Enum.UnitMaximumHealthMode.WithAbsorbs,
-                    maximumHealthClamp =
-                        Enum.UnitDamageAbsorbClampMode.MaximumHealth,
-                    missingHealthClamp = Enum.UnitDamageAbsorbClampMode
-                        .MissingHealthWithoutIncomingHeals,
-                    immediate = Enum.StatusBarInterpolation.Immediate,
-                },
-            }
-        )
-    else
-        view.health:SetMinMaxValues(0, maximum)
-        view.health:SetValue(health)
-    end
+    self:UpdateHealthValues(unit, view, health, maximum)
 
     if issecretvalue and
         (issecretvalue(health) or issecretvalue(maximum)) then
@@ -1019,6 +1152,7 @@ function Runtime:UpdateCast(unit, event)
     end
 
     if not name then
+        self:SetCastActive(unit, view, false)
         view.cast:Hide()
         view.castIconFrame:Hide()
         view.interruptMarkerFrame:Hide()
@@ -1039,6 +1173,7 @@ function Runtime:UpdateCast(unit, event)
     )
 
     if not view.castDuration then
+        self:SetCastActive(unit, view, false)
         view.cast:Hide()
         return
     end
@@ -1092,6 +1227,7 @@ function Runtime:UpdateCast(unit, event)
         view.castDuration,
         view.interruptCooldown
     )
+    self:SetCastActive(unit, view, true)
     view.cast:Show()
     self:UpdateHealth(unit)
 end
@@ -1130,8 +1266,65 @@ function Runtime:SetBlizzardFrameHidden(view, shouldHide)
     end
 end
 
+function Runtime:AcquireLightweightView(createView)
+    return table.remove(self.lightweightPool) or createView()
+end
+
+function Runtime:ReleaseLightweightView(view)
+    view:Hide()
+    view:SetParent(nil)
+    view.unit = nil
+    view.blizzardUnitFrame = nil
+    view.blizzardAlpha = nil
+    view.blizzardAurasAlpha = nil
+    self.lightweightPool[#self.lightweightPool + 1] = view
+end
+
+function Runtime:UpdateHealthValues(unit, view, health, maximum)
+    if view.absorbCalculator and self.absorbUpdateApi then
+        AbsorbPrediction:Update(
+            unit,
+            view.absorbCalculator,
+            view.health,
+            view.absorb,
+            self.absorbUpdateApi
+        )
+        return
+    end
+
+    view.health:SetMinMaxValues(0, maximum)
+    view.health:SetValue(health)
+end
+
+function Runtime:UpdateLightweightHealth(unit)
+    local view = self.lightweightPlates[unit]
+
+    if not view then
+        return
+    end
+
+    self:UpdateHealthValues(
+        unit,
+        view,
+        UnitHealth(unit),
+        UnitHealthMax(unit)
+    )
+end
+
+function Runtime:ShowLightweightPlate(unit, basePlate)
+    local view = self:AcquireLightweightView(createLightweightView)
+
+    attachLightweightView(view, basePlate, unit)
+    self:SetBlizzardFrameHidden(view, true)
+    self.lightweightPlates[unit] = view
+    NameplateStacking:ApplyBounds(basePlate, view)
+    self:UpdateLightweightHealth(unit)
+    view:Show()
+    self:RefreshUpdateDriver()
+end
+
 function Runtime:AddPlate(unit)
-    if self.activePlates[unit] then
+    if self.activePlates[unit] or self.lightweightPlates[unit] then
         self.lastAddResult = "duplicate:" .. tostring(unit)
         return
     end
@@ -1145,6 +1338,31 @@ function Runtime:AddPlate(unit)
 
     if not basePlate then
         self.lastAddResult = "missing-frame:" .. tostring(unit)
+        return
+    end
+
+
+    local classification = DisplayText:SafeValue(
+        UnitClassification(unit),
+        nil
+    )
+    local effectiveLevel = DisplayText:SafeValue(
+        UnitEffectiveLevel(unit),
+        nil
+    )
+    local isLieutenant = DisplayText:SafeValue(
+        UnitIsLieutenant(unit),
+        false
+    )
+
+    if not NpcClassification:ShouldShowNameplate({
+        classification = classification,
+        effectiveLevel = effectiveLevel,
+        isLieutenant = isLieutenant,
+        playerLevel = UnitLevel("player"),
+    }) then
+        self:ShowLightweightPlate(unit, basePlate)
+        self.lastAddResult = "lightweight-non-elite:" .. tostring(unit)
         return
     end
 
@@ -1166,6 +1384,7 @@ function Runtime:AddPlate(unit)
     self:UpdateHealth(unit)
     self:UpdateCast(unit)
     self:UpdateAuras(unit)
+    self:RefreshUpdateDriver()
 end
 
 function Runtime:UpdateRaidTarget(unit)
@@ -1217,7 +1436,7 @@ function Runtime:UpdateSelectionIndicators()
             UnitIsUnit(plateUnit, "focus"),
             false
         )
-        local focusStyle = Appearance:GetFocusStyle(isFocus)
+        local focusStyle = Appearance:GetFocusStyle(isFocus, isTarget)
 
         view:SetAlpha(focusStyle.alpha)
         view.focusOverlay:SetAlpha(focusStyle.overlayAlpha)
@@ -1254,6 +1473,16 @@ function Runtime:UpdateHoverIndicators()
 end
 
 function Runtime:RemovePlate(unit)
+    local lightweightView = self.lightweightPlates[unit]
+
+    if lightweightView then
+        self:SetBlizzardFrameHidden(lightweightView, false)
+        self.lightweightPlates[unit] = nil
+        self:ReleaseLightweightView(lightweightView)
+        self:RefreshUpdateDriver()
+        return
+    end
+
     local view = self.activePlates[unit]
 
     if not view then
@@ -1261,6 +1490,7 @@ function Runtime:RemovePlate(unit)
     end
 
     view:Hide()
+    self:SetCastActive(unit, view, false)
 
     if view.auraContainer then
         view.auraContainer:SetEnabled(false)
@@ -1279,34 +1509,117 @@ function Runtime:RemovePlate(unit)
 
     view:SetParent(nil)
     self.activePlates[unit] = nil
+    self:RefreshUpdateDriver()
+end
+
+function Runtime:ReleaseAllPlates()
+    local units = {}
+
+    for unit in pairs(self.activePlates) do
+        units[#units + 1] = unit
+    end
+
+
+    for unit in pairs(self.lightweightPlates) do
+        units[#units + 1] = unit
+    end
+
+    for _, unit in ipairs(units) do
+        self:RemovePlate(unit)
+    end
+
+    self.activeCasts = {}
+    self.lightweightPlates = {}
+end
+
+function Runtime:ReleaseForLoadingScreen(collect)
+    self:ReleaseAllPlates()
+    collect()
 end
 
 function Runtime:OnUpdate(elapsed)
-    self.hoverRefreshElapsed = (self.hoverRefreshElapsed or 0) + elapsed
+    local shouldRefreshHover
 
-    if self.hoverRefreshElapsed >=
-        TargetIndicator:GetHoverRefreshInterval() then
-        self.hoverRefreshElapsed = 0
+    shouldRefreshHover, self.hoverRefreshElapsed =
+        self:AdvanceRefreshClock(
+            self.hoverRefreshElapsed,
+            elapsed,
+            TargetIndicator:GetHoverRefreshInterval()
+        )
+
+    if shouldRefreshHover then
         self:UpdateHoverIndicators()
     end
 
-    for _, view in pairs(self.activePlates) do
-        if Config.hideBlizzardFrame and view.blizzardUnitFrame and
-            view.blizzardUnitFrame:GetAlpha() ~= 0 then
-            view.blizzardUnitFrame:SetAlpha(0)
+    if next(self.activeCasts) then
+        local shouldRefreshCasts
+
+        shouldRefreshCasts, self.castRefreshElapsed =
+            self:AdvanceRefreshClock(
+                self.castRefreshElapsed,
+                elapsed,
+                Config.castRefreshInterval
+            )
+
+        if shouldRefreshCasts then
+            for _, view in pairs(self.activeCasts) do
+                updateCastVisual(
+                    view,
+                    view.castDuration,
+                    view.interruptCooldown
+                )
+            end
+        end
+    else
+        self.castRefreshElapsed = nil
+    end
+
+    local shouldSuppressBlizzardFrames
+
+    shouldSuppressBlizzardFrames, self.frameSuppressionElapsed =
+        self:AdvanceRefreshClock(
+            self.frameSuppressionElapsed,
+            elapsed,
+            Config.frameSuppressionInterval
+        )
+
+    if shouldSuppressBlizzardFrames and Config.hideBlizzardFrame then
+        for _, view in pairs(self.activePlates) do
+            if view.blizzardUnitFrame and
+                view.blizzardUnitFrame:GetAlpha() ~= 0 then
+                view.blizzardUnitFrame:SetAlpha(0)
+            end
         end
 
-        if view.cast:IsShown() and view.castDuration then
-            updateCastVisual(
-                view,
-                view.castDuration,
-                view.interruptCooldown
-            )
+
+        for _, view in pairs(self.lightweightPlates) do
+            if view.blizzardUnitFrame and
+                view.blizzardUnitFrame:GetAlpha() ~= 0 then
+                view.blizzardUnitFrame:SetAlpha(0)
+            end
         end
     end
 end
 
 function Runtime:OnEvent(event, unit, _, spellID)
+    if event == "PLAYER_LEAVING_WORLD" then
+        self:ReleaseForLoadingScreen(function()
+            collectgarbage("collect")
+        end)
+        return
+    end
+
+    if event == "CHALLENGE_MODE_COMPLETED" or
+        event == "PLAYER_REGEN_ENABLED" then
+        self:HandleDungeonCleanupEvent(
+            event,
+            InCombatLockdown,
+            function()
+                collectgarbage("collect")
+            end
+        )
+    end
+
     if NameplateStacking:ShouldApplyOnEvent(
         event,
         self.stackingPending
@@ -1319,8 +1632,10 @@ function Runtime:OnEvent(event, unit, _, spellID)
         self:AddPlate(unit)
     elseif event == "NAME_PLATE_UNIT_REMOVED" then
         self:RemovePlate(unit)
-    elseif event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH" or
-        event == "UNIT_HEAL_PREDICTION" or
+    elseif event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH" then
+        self:UpdateLightweightHealth(unit)
+        self:UpdateHealth(unit)
+    elseif event == "UNIT_HEAL_PREDICTION" or
         event == "UNIT_ABSORB_AMOUNT_CHANGED" or
         event == "UNIT_HEAL_ABSORB_AMOUNT_CHANGED" or
         event == "UNIT_FACTION" or
@@ -1367,27 +1682,35 @@ function Runtime:Enable()
         SetCVar,
         InCombatLockdown and InCombatLockdown()
     )
-    self.castTimeFormatter = C_StringUtil.CreateSecondsFormatter()
-    self.castTimeFormatter:SetMillisecondsThreshold(5)
+    self.castTimeFormatter = C_StringUtil.CreateNumericRuleFormatter()
+    self.castTimeFormatter:AddBreakpoint(
+        CastDuration:GetTimeBreakpoint()
+    )
     self.auraTimeFormatter = C_StringUtil.CreateNumericRuleFormatter()
     self.auraTimeFormatter:AddBreakpoint(
         AuraDisplay:GetDurationBreakpoint()
     )
+    if CreateUnitHealPredictionCalculator and
+        UnitGetDetailedHealPrediction then
+        self.absorbUpdateApi = self:CreateAbsorbUpdateApi()
+    end
     self.frame = CreateFrame("Frame")
     self.frame:SetScript("OnEvent", function(_, event, ...)
         self:OnEvent(event, ...)
     end)
-    self.frame:SetScript("OnUpdate", function(_, elapsed)
+    self.onUpdateHandler = function(_, elapsed)
         self:OnUpdate(elapsed)
-    end)
+    end
 
     local events = {
         "NAME_PLATE_UNIT_ADDED",
         "NAME_PLATE_UNIT_REMOVED",
         "PLAYER_ENTERING_WORLD",
+        "PLAYER_LEAVING_WORLD",
         "PLAYER_TARGET_CHANGED",
         "PLAYER_FOCUS_CHANGED",
         "PLAYER_REGEN_ENABLED",
+        "CHALLENGE_MODE_COMPLETED",
         "RAID_TARGET_UPDATE",
         "UPDATE_MOUSEOVER_UNIT",
         "PLAYER_SPECIALIZATION_CHANGED",
@@ -1424,6 +1747,8 @@ function Runtime:Enable()
             self:AddPlate(unit)
         end
     end
+
+    self:RefreshUpdateDriver()
 end
 
 function Runtime:Disable()
@@ -1434,22 +1759,19 @@ function Runtime:Disable()
     self.frame:UnregisterAllEvents()
     self.frame:SetScript("OnUpdate", nil)
     self.frame = nil
+    self.onUpdateHandler = nil
     self.interruptSpellID = nil
     self.interruptMarkerRefreshPending = nil
     self.stackingPending = nil
     self.hoverRefreshElapsed = nil
+    self.castRefreshElapsed = nil
+    self.frameSuppressionElapsed = nil
+    self.absorbUpdateApi = nil
     self.castTimeFormatter = nil
     self.auraTimeFormatter = nil
+    self.dungeonCleanupPending = nil
 
-    local units = {}
-
-    for unit in pairs(self.activePlates) do
-        units[#units + 1] = unit
-    end
-
-    for _, unit in ipairs(units) do
-        self:RemovePlate(unit)
-    end
+    self:ReleaseAllPlates()
 
 end
 

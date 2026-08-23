@@ -59,7 +59,7 @@ Describe("Target indicator", function()
 
     It("refreshes hover state often enough to clear stale borders", function()
         -- Given
-        local expectedInterval = 0.05
+        local expectedInterval = 0.15
 
         -- When
         local interval = targetIndicator:GetHoverRefreshInterval()

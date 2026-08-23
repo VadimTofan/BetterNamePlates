@@ -3,6 +3,26 @@ local _, namespace = ...
 local NpcClassification = {}
 local FEL_INFUSION_POWER_TOKEN = "POWER_TYPE_FEL_INFUSION"
 
+function NpcClassification:ShouldShowNameplate(unit)
+    if unit.classification == "elite" or
+        unit.classification == "rareelite" or
+        unit.classification == "worldboss" then
+        return true
+    end
+
+    if unit.isLieutenant then
+        return true
+    end
+
+    if unit.playerLevel and unit.effectiveLevel then
+        return unit.effectiveLevel == -1 or
+            unit.effectiveLevel == unit.playerLevel + 1 or
+            unit.effectiveLevel == unit.playerLevel + 2
+    end
+
+    return false
+end
+
 function NpcClassification:GetColorKey(unit)
     if unit.playerLevel and unit.effectiveLevel then
         if unit.effectiveLevel == -1 or

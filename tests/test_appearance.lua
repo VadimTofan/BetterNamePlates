@@ -137,4 +137,19 @@ Describe("Profile unit coloring", function()
         ExpectEqual(style.borderColorKey, "border")
         ExpectEqual(style.desaturated, false)
     end)
+
+    It("lets current target styling override focus styling", function()
+        -- Given
+        local isFocus = true
+        local isTarget = true
+
+        -- When
+        local style = appearance:GetFocusStyle(isFocus, isTarget)
+
+        -- Then
+        ExpectEqual(style.alpha, 1)
+        ExpectEqual(style.overlayAlpha, 0)
+        ExpectEqual(style.borderColorKey, "border")
+        ExpectEqual(style.desaturated, false)
+    end)
 end)

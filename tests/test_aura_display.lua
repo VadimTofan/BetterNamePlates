@@ -48,6 +48,104 @@ Describe("Player debuff display", function()
         ExpectEqual(anchor.flowDirection, "Left")
     end)
 
+    It("selects non-overlapping defensive and important enemy buffs", function()
+        -- Given
+        local namespace = {}
+        local auraDisplay = LoadAddonFile("AuraDisplay.lua", namespace)
+
+        -- When
+        local filters = auraDisplay:GetImportantBuffFilters()
+
+        -- Then
+        ExpectEqual(filters[1], "HELPFUL|BIG_DEFENSIVE")
+        ExpectEqual(
+            filters[2],
+            "HELPFUL|EXTERNAL_DEFENSIVE|!BIG_DEFENSIVE"
+        )
+        ExpectEqual(
+            filters[3],
+            "HELPFUL|IMPORTANT|!BIG_DEFENSIVE|!EXTERNAL_DEFENSIVE"
+        )
+        ExpectEqual(#filters, 3)
+    end)
+
+    It("places important enemy buffs beyond the target arrow width", function()
+        -- Given
+        local namespace = {}
+        local auraDisplay = LoadAddonFile("AuraDisplay.lua", namespace)
+
+        -- When
+        local anchor = auraDisplay:GetImportantBuffAnchorLayout(2, 27)
+
+        -- Then
+        ExpectEqual(anchor.layerPoint, "LEFT")
+        ExpectEqual(anchor.platePoint, "RIGHT")
+        ExpectEqual(anchor.x, 19)
+        ExpectEqual(anchor.y, 0)
+        ExpectEqual(anchor.itemPoint, "LEFT")
+        ExpectEqual(anchor.flowDirection, "Right")
+    end)
+
+    It("uses a one pixel bright red border for important enemy buffs", function()
+        -- Given
+        local namespace = {}
+        local auraDisplay = LoadAddonFile("AuraDisplay.lua", namespace)
+
+        -- When
+        local border = auraDisplay:GetImportantBuffBorder()
+
+        -- Then
+        ExpectEqual(border.thickness, 1)
+        ExpectEqual(border.color[1], 1)
+        ExpectEqual(border.color[2], 0)
+        ExpectEqual(border.color[3], 0)
+        ExpectEqual(border.color[4], 1)
+    end)
+
+    It("scales important enemy buff icons to one hundred twenty-five percent", function()
+        -- Given
+        local namespace = {}
+        local auraDisplay = LoadAddonFile("AuraDisplay.lua", namespace)
+
+        -- When
+        local iconSize = auraDisplay:GetImportantBuffIconSize(18)
+
+        -- Then
+        ExpectEqual(iconSize, 22.5)
+    end)
+
+    It("enables mouseover tooltips only for important enemy buffs", function()
+        -- Given
+        local namespace = {}
+        local auraDisplay = LoadAddonFile("AuraDisplay.lua", namespace)
+
+        -- When
+        local interaction = auraDisplay:GetImportantBuffInteraction()
+
+        -- Then
+        ExpectEqual(interaction.enableMouse, true)
+        ExpectEqual(interaction.enableClicks, false)
+        ExpectEqual(interaction.hideTooltipInCombat, false)
+        ExpectEqual(interaction.useNativeTooltip, true)
+        ExpectEqual(interaction.tooltipAnchor, "ANCHOR_RIGHT")
+    end)
+
+    It("keeps all important buff categories on one horizontal row", function()
+        -- Given
+        local namespace = {}
+        local auraDisplay = LoadAddonFile("AuraDisplay.lua", namespace)
+
+        -- When
+        local maximumLineSize = auraDisplay:GetImportantBuffMaximumLineSize({
+            iconSize = 18,
+            iconSpacing = 2,
+            maxCount = 5,
+        })
+
+        -- Then
+        ExpectEqual(maximumLineSize, 300)
+    end)
+
     It("formats debuff durations as bare whole numbers", function()
         -- Given
         local namespace = {}

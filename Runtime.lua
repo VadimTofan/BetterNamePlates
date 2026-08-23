@@ -143,6 +143,27 @@ local function createRaidTargetIndicator(healthBar)
     return icon
 end
 
+local function createAuraLayer(healthBar, anchor, frameStrata, frameLevel)
+    local layer = CreateFrame("Frame", nil, UIParent)
+
+    layer:SetFrameStrata(frameStrata)
+    layer:SetFrameLevel(frameLevel)
+    if layer.SetIgnoreParentScale then
+        layer:SetIgnoreParentScale(true)
+    end
+    layer:SetScale(Config.scale)
+    layer:SetSize(1, 1)
+    layer:SetPoint(
+        anchor.layerPoint,
+        healthBar,
+        anchor.platePoint,
+        anchor.x,
+        anchor.y
+    )
+
+    return layer
+end
+
 local function createPlateView(basePlate)
     local view = CreateFrame("Frame", nil, basePlate)
     local blizzardUnitFrame = basePlate.UnitFrame
@@ -324,20 +345,30 @@ local function createPlateView(basePlate)
     local auraAnchor = AuraDisplay:GetAnchorLayout(Config.auraIconSpacing)
 
     view.auraAnchor = auraAnchor
-    view.auraLayer = CreateFrame("Frame", nil, UIParent)
-    view.auraLayer:SetFrameStrata(FrameLayout:GetAuraStrata())
-    view.auraLayer:SetFrameLevel(FrameLayout:GetAuraLevel())
-    if view.auraLayer.SetIgnoreParentScale then
-        view.auraLayer:SetIgnoreParentScale(true)
-    end
-    view.auraLayer:SetScale(Config.scale)
-    view.auraLayer:SetSize(1, 1)
-    view.auraLayer:SetPoint(
-        auraAnchor.layerPoint,
+    view.auraLayer = createAuraLayer(
         view.health,
-        auraAnchor.platePoint,
-        auraAnchor.x,
-        auraAnchor.y
+        auraAnchor,
+        FrameLayout:GetAuraStrata(),
+        FrameLayout:GetAuraLevel()
+    )
+
+    local arrowLayout = TargetIndicator:GetArrowLayout(
+        Config.healthHeight,
+        Config.targetArrowScale,
+        Config.targetArrowX,
+        Config.targetArrowWidthScale,
+        Config.targetArrowHeightScale
+    )
+
+    view.importantBuffAnchor = AuraDisplay:GetImportantBuffAnchorLayout(
+        Config.auraIconSpacing,
+        arrowLayout.width
+    )
+    view.importantBuffLayer = createAuraLayer(
+        view.health,
+        view.importantBuffAnchor,
+        view.health:GetFrameStrata(),
+        view.health:GetFrameLevel() + 10
     )
 
     view.auras = {}
@@ -369,17 +400,29 @@ local function createPlateView(basePlate)
     return view
 end
 
-local function initializeAuraButton(auraButton)
-    auraButton:SetSize(Config.auraIconSize, Config.auraIconSize)
-    local mouseEnabled = AuraDisplay:ShouldEnableMouse()
+local function initializeAuraButton(auraButton, border, iconSize, interaction)
+    iconSize = iconSize or Config.auraIconSize
+    auraButton:SetSize(iconSize, iconSize)
+    interaction = interaction or {
+        enableMouse = AuraDisplay:ShouldEnableMouse(),
+        enableClicks = AuraDisplay:ShouldEnableMouse(),
+        hideTooltipInCombat = AuraDisplay:ShouldHideTooltipInCombat(),
+    }
 
-    auraButton:EnableMouse(mouseEnabled)
-    auraButton:EnableMouseMotion(mouseEnabled)
-    auraButton:SetMouseClickEnabled(mouseEnabled)
-    auraButton:SetMouseMotionEnabled(mouseEnabled)
+    auraButton:EnableMouse(interaction.enableMouse)
+    auraButton:EnableMouseMotion(interaction.enableMouse)
+    auraButton:SetMouseClickEnabled(interaction.enableClicks)
+    auraButton:SetMouseMotionEnabled(interaction.enableMouse)
     auraButton:SetHideTooltipInCombat(
-        AuraDisplay:ShouldHideTooltipInCombat()
+        interaction.hideTooltipInCombat
     )
+    if interaction.tooltipAnchor then
+        auraButton:SetTooltipAnchorPoint(
+            interaction.tooltipAnchor,
+            0,
+            0
+        )
+    end
 
     auraButton.icon = auraButton:CreateTexture(nil, "ARTWORK")
     auraButton.icon:SetAllPoints(auraButton)
@@ -426,56 +469,124 @@ local function initializeAuraButton(auraButton)
     )
     auraButton.countText:SetPoint("BOTTOMRIGHT", auraButton, "BOTTOMRIGHT")
     auraButton:SetApplicationCount(auraButton.countText)
-    createBorder(auraButton)
+    border = border or {}
+    createBorder(auraButton, border.thickness, border.color)
 end
 
-local function createNativeAuraContainer(view, unit)
+local function initializeImportantBuffButton(auraButton)
+    initializeAuraButton(
+        auraButton,
+        AuraDisplay:GetImportantBuffBorder(),
+        AuraDisplay:GetImportantBuffIconSize(Config.auraIconSize),
+        AuraDisplay:GetImportantBuffInteraction()
+    )
+end
+
+local function createNativeAuraContainer(
+    layer,
+    anchor,
+    unit,
+    groups,
+    maximumLineSize
+)
+    local container = CreateFrame(
+        "AuraContainer",
+        nil,
+        layer,
+        "CustomAuraContainerTemplate"
+    )
+
+    container:SetFrameLevel(layer:GetFrameLevel())
+    container:SetSize(1, 1)
+    container:SetPoint(
+        anchor.itemPoint,
+        layer,
+        anchor.itemPoint,
+        0,
+        0
+    )
+
+    for _, group in ipairs(groups) do
+        local options = AuraDisplay:GetGroupOptions({
+            iconSize = group.iconSize or Config.auraIconSize,
+            iconSpacing = Config.auraIconSpacing,
+            maxCount = Config.auraMaxCount,
+        })
+
+        if not group.excludeSpellIDs then
+            options.candidateFilters = nil
+        end
+        options.sortMethod = AuraContainerSortMethod.Expiration
+        options.sortDirection = AuraContainerSortDirection.Normal
+        options.initializeFrame =
+            group.initializeFrame or initializeAuraButton
+
+        container:AddAuraGroup(group.key, group.filter, options)
+        container:SetAuraGroupLayout(group.key, options.layout)
+    end
+
+    container:SetFlowLayoutAnchorPoint(anchor.itemPoint)
+    container:SetFlowLayoutGrowthDirection(
+        AnchorUtil.FlowDirection[anchor.flowDirection],
+        AnchorUtil.FlowDirection.Up
+    )
+    container:SetFlowLayoutMaximumLineSize(maximumLineSize)
+    container:SetEnabled(true)
+    container:SetUnit(unit)
+
+    return container
+end
+
+local function createNativeAuraContainers(view, unit)
     if not supportsNativeAuraContainers() then
         return
     end
 
-    local container = CreateFrame(
-        "AuraContainer",
-        nil,
-        view.auraLayer,
-        "CustomAuraContainerTemplate"
-    )
-    local options = AuraDisplay:GetGroupOptions({
+    local groupOptions = {
         iconSize = Config.auraIconSize,
         iconSpacing = Config.auraIconSpacing,
         maxCount = Config.auraMaxCount,
-    })
+    }
+    local debuffOptions = AuraDisplay:GetGroupOptions(groupOptions)
 
-    container:SetFrameLevel(FrameLayout:GetAuraLevel())
-    options.sortMethod = AuraContainerSortMethod.Expiration
-    options.sortDirection = AuraContainerSortDirection.Normal
-    options.initializeFrame = initializeAuraButton
-
-    container:SetSize(1, 1)
-    container:SetPoint(
-        view.auraAnchor.itemPoint,
+    view.auraContainer = createNativeAuraContainer(
         view.auraLayer,
-        view.auraAnchor.itemPoint,
-        0,
-        0
+        view.auraAnchor,
+        unit,
+        {{
+            key = "playerDebuffs",
+            filter = AuraDisplay:GetFilter(),
+            excludeSpellIDs = true,
+        }},
+        debuffOptions.layout.maximumLineSize
     )
-    container:AddAuraGroup(
-        "playerDebuffs",
-        AuraDisplay:GetFilter(),
-        options
+
+    local importantBuffGroups = {}
+    local importantBuffIconSize =
+        AuraDisplay:GetImportantBuffIconSize(Config.auraIconSize)
+
+    for index, filter in ipairs(AuraDisplay:GetImportantBuffFilters()) do
+        importantBuffGroups[index] = {
+            key = "importantBuff" .. index,
+            filter = filter,
+            iconSize = importantBuffIconSize,
+            initializeFrame = initializeImportantBuffButton,
+        }
+    end
+
+    local importantBuffOptions = {
+        iconSize = importantBuffIconSize,
+        iconSpacing = Config.auraIconSpacing,
+        maxCount = Config.auraMaxCount,
+    }
+
+    view.importantBuffContainer = createNativeAuraContainer(
+        view.importantBuffLayer,
+        view.importantBuffAnchor,
+        unit,
+        importantBuffGroups,
+        AuraDisplay:GetImportantBuffMaximumLineSize(importantBuffOptions)
     )
-    container:SetAuraGroupLayout("playerDebuffs", options.layout)
-    container:SetFlowLayoutAnchorPoint(view.auraAnchor.itemPoint)
-    container:SetFlowLayoutGrowthDirection(
-        AnchorUtil.FlowDirection[view.auraAnchor.flowDirection],
-        AnchorUtil.FlowDirection.Up
-    )
-    container:SetFlowLayoutMaximumLineSize(
-        options.layout.maximumLineSize
-    )
-    container:SetEnabled(true)
-    container:SetUnit(unit)
-    view.auraContainer = container
 end
 
 function Runtime:RefreshInterruptSpell()
@@ -965,7 +1076,7 @@ function Runtime:AddPlate(unit)
 
     self.activePlates[unit] = view
     NameplateStacking:ApplyBounds(basePlate, view)
-    createNativeAuraContainer(view, unit)
+    createNativeAuraContainers(view, unit)
     self.lastAddResult = "added:" .. tostring(unit)
 
     self:UpdateSelectionIndicators()
@@ -1061,8 +1172,14 @@ function Runtime:RemovePlate(unit)
         view.auraContainer:SetEnabled(false)
     end
 
+    if view.importantBuffContainer then
+        view.importantBuffContainer:SetEnabled(false)
+    end
+
     view.auraLayer:Hide()
     view.auraLayer:SetParent(nil)
+    view.importantBuffLayer:Hide()
+    view.importantBuffLayer:SetParent(nil)
 
     self:SetBlizzardFrameHidden(view, false)
 

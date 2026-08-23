@@ -2,6 +2,19 @@ local _, namespace = ...
 
 local AuraDisplay = {}
 
+local IMPORTANT_BUFF_BORDER = {
+    thickness = 1,
+    color = {1, 0, 0, 1},
+}
+local IMPORTANT_BUFF_LEFT_ADJUSTMENT = 10
+local IMPORTANT_BUFF_ICON_SCALE = 1.25
+
+local IMPORTANT_BUFF_FILTERS = {
+    "HELPFUL|BIG_DEFENSIVE",
+    "HELPFUL|EXTERNAL_DEFENSIVE|!BIG_DEFENSIVE",
+    "HELPFUL|IMPORTANT|!BIG_DEFENSIVE|!EXTERNAL_DEFENSIVE",
+}
+
 local EXCLUDED_SPELL_IDS = {
     [33917] = true,
     [430589] = true,
@@ -45,6 +58,46 @@ function AuraDisplay:GetAnchorLayout(iconSpacing)
         horizontalStep = -1,
         flowDirection = "Left",
     }
+end
+
+function AuraDisplay:GetImportantBuffFilters()
+    return IMPORTANT_BUFF_FILTERS
+end
+
+function AuraDisplay:GetImportantBuffAnchorLayout(iconSpacing, arrowWidth)
+    return {
+        layerPoint = "LEFT",
+        platePoint = "RIGHT",
+        itemPoint = "LEFT",
+        x = iconSpacing + arrowWidth - IMPORTANT_BUFF_LEFT_ADJUSTMENT,
+        y = 0,
+        flowDirection = "Right",
+    }
+end
+
+function AuraDisplay:GetImportantBuffBorder()
+    return IMPORTANT_BUFF_BORDER
+end
+
+function AuraDisplay:GetImportantBuffIconSize(baseIconSize)
+    return baseIconSize * IMPORTANT_BUFF_ICON_SCALE
+end
+
+function AuraDisplay:GetImportantBuffInteraction()
+    return {
+        enableMouse = true,
+        enableClicks = false,
+        hideTooltipInCombat = false,
+        useNativeTooltip = true,
+        tooltipAnchor = "ANCHOR_RIGHT",
+    }
+end
+
+function AuraDisplay:GetImportantBuffMaximumLineSize(config)
+    local filterCount = #IMPORTANT_BUFF_FILTERS
+    local elementSize = config.iconSize + config.iconSpacing
+
+    return config.maxCount * filterCount * elementSize
 end
 
 function AuraDisplay:GetExcludedSpellIDs()

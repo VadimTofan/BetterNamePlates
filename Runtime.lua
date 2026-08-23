@@ -321,19 +321,40 @@ local function createPlateView(basePlate)
         view.castTimeBinding:SetEnabled(true)
     end
 
+    local auraAnchor = AuraDisplay:GetAnchorLayout(Config.auraIconSpacing)
+
+    view.auraAnchor = auraAnchor
+    view.auraLayer = CreateFrame("Frame", nil, UIParent)
+    view.auraLayer:SetFrameStrata(FrameLayout:GetAuraStrata())
+    view.auraLayer:SetFrameLevel(FrameLayout:GetAuraLevel())
+    if view.auraLayer.SetIgnoreParentScale then
+        view.auraLayer:SetIgnoreParentScale(true)
+    end
+    view.auraLayer:SetScale(Config.scale)
+    view.auraLayer:SetSize(1, 1)
+    view.auraLayer:SetPoint(
+        auraAnchor.layerPoint,
+        view.health,
+        auraAnchor.platePoint,
+        auraAnchor.x,
+        auraAnchor.y
+    )
+
     view.auras = {}
 
     if not supportsNativeAuraContainers() then
         for index = 1, Config.auraMaxCount do
-            local aura = CreateFrame("Frame", nil, view)
+            local aura = CreateFrame("Frame", nil, view.auraLayer)
+
             aura:SetSize(Config.auraIconSize, Config.auraIconSize)
             aura:SetPoint(
-                "BOTTOMLEFT",
-                view.health,
-                "TOPLEFT",
+                auraAnchor.itemPoint,
+                view.auraLayer,
+                auraAnchor.itemPoint,
                 (index - 1) *
-                    (Config.auraIconSize + Config.auraIconSpacing),
-                Config.auraIconSpacing
+                    (Config.auraIconSize + Config.auraIconSpacing) *
+                    auraAnchor.horizontalStep,
+                0
             )
             aura.icon = aura:CreateTexture(nil, "ARTWORK")
             aura.icon:SetAllPoints()
@@ -416,7 +437,7 @@ local function createNativeAuraContainer(view, unit)
     local container = CreateFrame(
         "AuraContainer",
         nil,
-        view,
+        view.auraLayer,
         "CustomAuraContainerTemplate"
     )
     local options = AuraDisplay:GetGroupOptions({
@@ -425,17 +446,18 @@ local function createNativeAuraContainer(view, unit)
         maxCount = Config.auraMaxCount,
     })
 
+    container:SetFrameLevel(FrameLayout:GetAuraLevel())
     options.sortMethod = AuraContainerSortMethod.Expiration
     options.sortDirection = AuraContainerSortDirection.Normal
     options.initializeFrame = initializeAuraButton
 
     container:SetSize(1, 1)
     container:SetPoint(
-        "BOTTOMLEFT",
-        view.health,
-        "TOPLEFT",
+        view.auraAnchor.itemPoint,
+        view.auraLayer,
+        view.auraAnchor.itemPoint,
         0,
-        Config.auraIconSpacing
+        0
     )
     container:AddAuraGroup(
         "playerDebuffs",
@@ -443,9 +465,9 @@ local function createNativeAuraContainer(view, unit)
         options
     )
     container:SetAuraGroupLayout("playerDebuffs", options.layout)
-    container:SetFlowLayoutAnchorPoint("BOTTOMLEFT")
+    container:SetFlowLayoutAnchorPoint(view.auraAnchor.itemPoint)
     container:SetFlowLayoutGrowthDirection(
-        AnchorUtil.FlowDirection.Right,
+        AnchorUtil.FlowDirection[view.auraAnchor.flowDirection],
         AnchorUtil.FlowDirection.Up
     )
     container:SetFlowLayoutMaximumLineSize(
@@ -883,6 +905,40 @@ function Runtime:UpdateCast(unit, event)
     self:UpdateHealth(unit)
 end
 
+function Runtime:SetBlizzardFrameHidden(view, shouldHide)
+    local unitFrame = view and view.blizzardUnitFrame
+
+    if not unitFrame then
+        return
+    end
+
+    local aurasFrame = unitFrame.AurasFrame
+
+    if shouldHide then
+        if view.blizzardAlpha == nil then
+            view.blizzardAlpha = unitFrame:GetAlpha()
+        end
+
+        unitFrame:SetAlpha(0)
+
+        if aurasFrame then
+            if view.blizzardAurasAlpha == nil then
+                view.blizzardAurasAlpha = aurasFrame:GetAlpha()
+            end
+
+            aurasFrame:SetAlpha(0)
+        end
+
+        return
+    end
+
+    unitFrame:SetAlpha(view.blizzardAlpha or 1)
+
+    if aurasFrame then
+        aurasFrame:SetAlpha(view.blizzardAurasAlpha or 1)
+    end
+end
+
 function Runtime:AddPlate(unit)
     if self.activePlates[unit] then
         self.lastAddResult = "duplicate:" .. tostring(unit)
@@ -905,9 +961,8 @@ function Runtime:AddPlate(unit)
     view.unit = unit
     view.blizzardUnitFrame = basePlate.UnitFrame
 
-    if Config.hideBlizzardFrame and view.blizzardUnitFrame then
-        view.blizzardAlpha = view.blizzardUnitFrame:GetAlpha()
-        view.blizzardUnitFrame:SetAlpha(0)
+    if Config.hideBlizzardFrame then
+        self:SetBlizzardFrameHidden(view, true)
     end
 
     self.activePlates[unit] = view
@@ -1008,9 +1063,10 @@ function Runtime:RemovePlate(unit)
         view.auraContainer:SetEnabled(false)
     end
 
-    if view.blizzardUnitFrame then
-        view.blizzardUnitFrame:SetAlpha(view.blizzardAlpha or 1)
-    end
+    view.auraLayer:Hide()
+    view.auraLayer:SetParent(nil)
+
+    self:SetBlizzardFrameHidden(view, false)
 
     view:SetParent(nil)
     self.activePlates[unit] = nil

@@ -14,6 +14,30 @@ Describe("Nameplate frame layout", function()
         ExpectEqual(customFrameLevel, 8)
     end)
 
+    It("places debuffs below every custom nameplate", function()
+        -- Given
+        local namespace = {}
+        local frameLayout = LoadAddonFile("FrameLayout.lua", namespace)
+
+        -- When
+        local auraFrameLevel = frameLayout:GetAuraLevel()
+
+        -- Then
+        ExpectEqual(auraFrameLevel, 0)
+    end)
+
+    It("places detached debuffs in the background strata", function()
+        -- Given
+        local namespace = {}
+        local frameLayout = LoadAddonFile("FrameLayout.lua", namespace)
+
+        -- When
+        local auraFrameStrata = frameLayout:GetAuraStrata()
+
+        -- Then
+        ExpectEqual(auraFrameStrata, "BACKGROUND")
+    end)
+
     It("places cast text and borders above progress overlays", function()
         -- Given
         local namespace = {}

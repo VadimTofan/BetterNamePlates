@@ -1,5 +1,5 @@
 Describe("Nameplate stacking", function()
-    It("uses generous vertical row separation", function()
+    It("uses compact vertical row separation", function()
         -- Given
         local namespace = {}
         local stacking = LoadAddonFile("NameplateStacking.lua", namespace)
@@ -9,7 +9,7 @@ Describe("Nameplate stacking", function()
 
         -- Then
         ExpectEqual(settings.nameplateOverlapH, "2.0")
-        ExpectEqual(settings.nameplateOverlapV, "1.6")
+        ExpectEqual(settings.nameplateOverlapV, "1.2")
         ExpectEqual(settings.nameplateMaxDistance, "40")
     end)
 
@@ -94,7 +94,7 @@ Describe("Nameplate stacking", function()
         -- Then
         ExpectEqual(wasApplied, true)
         ExpectEqual(applied.nameplateOverlapH, "2.0")
-        ExpectEqual(applied.nameplateOverlapV, "1.6")
+        ExpectEqual(applied.nameplateOverlapV, "1.2")
         ExpectEqual(applied.nameplateMaxDistance, "40")
     end)
 

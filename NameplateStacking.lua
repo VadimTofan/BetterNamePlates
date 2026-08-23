@@ -5,7 +5,7 @@ local NameplateStacking = {}
 local SETTINGS = {
     nameplateMaxDistance = "40",
     nameplateOverlapH = "2.0",
-    nameplateOverlapV = "1.6",
+    nameplateOverlapV = "1.2",
 }
 
 function NameplateStacking:GetSettings()

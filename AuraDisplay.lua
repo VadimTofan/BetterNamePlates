@@ -35,6 +35,18 @@ function AuraDisplay:GetGroupOptions(config)
     }
 end
 
+function AuraDisplay:GetAnchorLayout(iconSpacing)
+    return {
+        layerPoint = "BOTTOMRIGHT",
+        platePoint = "TOPRIGHT",
+        itemPoint = "BOTTOMRIGHT",
+        x = 0,
+        y = iconSpacing,
+        horizontalStep = -1,
+        flowDirection = "Left",
+    }
+end
+
 function AuraDisplay:GetExcludedSpellIDs()
     return EXCLUDED_SPELL_IDS
 end

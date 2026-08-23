@@ -31,6 +31,23 @@ Describe("Player debuff display", function()
         ExpectEqual(options.layout.maximumLineSize, 122.5)
     end)
 
+    It("anchors debuffs at the top right and grows them left", function()
+        -- Given
+        local namespace = {}
+        local auraDisplay = LoadAddonFile("AuraDisplay.lua", namespace)
+
+        -- When
+        local anchor = auraDisplay:GetAnchorLayout(2)
+
+        -- Then
+        ExpectEqual(anchor.layerPoint, "BOTTOMRIGHT")
+        ExpectEqual(anchor.platePoint, "TOPRIGHT")
+        ExpectEqual(anchor.y, 2)
+        ExpectEqual(anchor.itemPoint, "BOTTOMRIGHT")
+        ExpectEqual(anchor.horizontalStep, -1)
+        ExpectEqual(anchor.flowDirection, "Left")
+    end)
+
     It("formats debuff durations as bare whole numbers", function()
         -- Given
         local namespace = {}

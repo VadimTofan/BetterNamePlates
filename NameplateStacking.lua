@@ -3,7 +3,7 @@ local _, namespace = ...
 local NameplateStacking = {}
 
 local SETTINGS = {
-    nameplateMaxDistance = "40",
+    nameplateMaxDistance = "60",
     nameplateOverlapH = "2.0",
     nameplateOverlapV = "1.2",
 }

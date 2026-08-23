@@ -10,7 +10,7 @@ Describe("Nameplate stacking", function()
         -- Then
         ExpectEqual(settings.nameplateOverlapH, "2.0")
         ExpectEqual(settings.nameplateOverlapV, "1.2")
-        ExpectEqual(settings.nameplateMaxDistance, "40")
+        ExpectEqual(settings.nameplateMaxDistance, "60")
     end)
 
     It("registers the custom view as the stacking boundary", function()
@@ -95,7 +95,7 @@ Describe("Nameplate stacking", function()
         ExpectEqual(wasApplied, true)
         ExpectEqual(applied.nameplateOverlapH, "2.0")
         ExpectEqual(applied.nameplateOverlapV, "1.2")
-        ExpectEqual(applied.nameplateMaxDistance, "40")
+        ExpectEqual(applied.nameplateMaxDistance, "60")
     end)
 
     It("reports the live stacking state for diagnostics", function()

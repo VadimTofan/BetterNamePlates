@@ -39,6 +39,15 @@ function FrameLayout:GetCastTextAnchor(leftPadding, bottomPadding)
     }
 end
 
+function FrameLayout:GetCastTimeAnchor(rightPadding, bottomPadding)
+    return {
+        point = "BOTTOMRIGHT",
+        relativePoint = "BOTTOMRIGHT",
+        x = -rightPadding,
+        y = bottomPadding,
+    }
+end
+
 function FrameLayout:GetNameAnchor(gap)
     return {
         point = "BOTTOMLEFT",

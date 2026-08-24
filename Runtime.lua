@@ -575,12 +575,16 @@ local function createPlateView(basePlate)
 
     view.castTime = view.castForeground:CreateFontString(nil, "OVERLAY")
     view.castTime:SetFont(Config.castFont, Config.castFontSize, "OUTLINE")
+    local castTimeAnchor = FrameLayout:GetCastTimeAnchor(
+        Config.castTimeRightPadding,
+        Config.castTimeBottomPadding
+    )
     view.castTime:SetPoint(
-        "RIGHT",
+        castTimeAnchor.point,
         view.castForeground,
-        "RIGHT",
-        -1,
-        -1.5
+        castTimeAnchor.relativePoint,
+        castTimeAnchor.x,
+        castTimeAnchor.y
     )
 
     view.castIconFrame = CreateFrame("Frame", nil, view)

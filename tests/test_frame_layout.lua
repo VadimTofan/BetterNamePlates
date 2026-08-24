@@ -97,6 +97,21 @@ Describe("Nameplate frame layout", function()
         ExpectEqual(anchor.y, 2)
     end)
 
+    It("anchors cast time from the padded bottom-right edge", function()
+        -- Given
+        local namespace = {}
+        local frameLayout = LoadAddonFile("FrameLayout.lua", namespace)
+
+        -- When
+        local anchor = frameLayout:GetCastTimeAnchor(1, 2)
+
+        -- Then
+        ExpectEqual(anchor.point, "BOTTOMRIGHT")
+        ExpectEqual(anchor.relativePoint, "BOTTOMRIGHT")
+        ExpectEqual(anchor.x, -1)
+        ExpectEqual(anchor.y, 2)
+    end)
+
     It("anchors NPC names above the left edge of the health bar", function()
         -- Given
         local namespace = {}

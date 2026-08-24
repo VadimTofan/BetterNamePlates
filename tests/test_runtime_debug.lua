@@ -1,38 +1,26 @@
 Describe("Runtime diagnostics", function()
-    It("updates absorb prediction for lightweight healthbars", function()
+    It("updates lightweight healthbars directly", function()
         -- Given
-        local receivedUnit
-        local receivedSnapshot
-        local receivedCapture
+        local minimum
+        local maximum
+        local value
         local namespace = {
             Config = {},
             CombatState = {},
             FrameLayout = {},
             Rules = {},
-            AbsorbPrediction = {
-                Update = function(
-                    _,
-                    unit,
-                    _,
-                    _,
-                    _,
-                    _,
-                    snapshot,
-                    shouldCapture
-                )
-                    receivedUnit = unit
-                    receivedSnapshot = snapshot
-                    receivedCapture = shouldCapture
-                end,
-            },
         }
         local runtime = LoadAddonFile("Runtime.lua", namespace)
-        runtime.absorbUpdateApi = {}
         local view = {
-            absorbCalculator = {},
-            absorb = {},
-            health = {},
-            absorbSnapshot = {},
+            health = {
+                SetMinMaxValues = function(_, receivedMinimum, receivedMaximum)
+                    minimum = receivedMinimum
+                    maximum = receivedMaximum
+                end,
+                SetValue = function(_, receivedValue)
+                    value = receivedValue
+                end,
+            },
         }
 
         -- When
@@ -40,48 +28,13 @@ Describe("Runtime diagnostics", function()
             "nameplate1",
             view,
             75,
-            100,
-            true
+            100
         )
 
         -- Then
-        ExpectEqual(receivedUnit, "nameplate1")
-        ExpectEqual(receivedSnapshot, view.absorbSnapshot)
-        ExpectEqual(receivedCapture, true)
-    end)
-
-    It("resets absorb snapshots after combat", function()
-        -- Given
-        local namespace = {
-            Config = {},
-            CombatState = {},
-            FrameLayout = {},
-            Rules = {},
-        }
-        local runtime = LoadAddonFile("Runtime.lua", namespace)
-        local fullSnapshot = {
-            captured = true,
-            maximum = "full-secret",
-        }
-        local lightweightSnapshot = {
-            captured = true,
-            maximum = "light-secret",
-        }
-        runtime.activePlates = {
-            nameplate1 = {absorbSnapshot = fullSnapshot},
-        }
-        runtime.lightweightPlates = {
-            nameplate2 = {absorbSnapshot = lightweightSnapshot},
-        }
-
-        -- When
-        runtime:ResetAbsorbSnapshots()
-
-        -- Then
-        ExpectEqual(fullSnapshot.captured, nil)
-        ExpectEqual(fullSnapshot.maximum, nil)
-        ExpectEqual(lightweightSnapshot.captured, nil)
-        ExpectEqual(lightweightSnapshot.maximum, nil)
+        ExpectEqual(minimum, 0)
+        ExpectEqual(maximum, 100)
+        ExpectEqual(value, 75)
     end)
 
     It("reuses released lightweight nameplates", function()
@@ -97,10 +50,6 @@ Describe("Runtime diagnostics", function()
         local pooledView = {
             blizzardAlpha = 0.75,
             blizzardAurasAlpha = 0.5,
-            absorbSnapshot = {
-                captured = true,
-                maximum = "secret-absorb",
-            },
             Hide = function()
             end,
             SetParent = function()
@@ -120,8 +69,6 @@ Describe("Runtime diagnostics", function()
         ExpectEqual(#runtime.lightweightPool, 0)
         ExpectEqual(acquired.blizzardAlpha, nil)
         ExpectEqual(acquired.blizzardAurasAlpha, nil)
-        ExpectEqual(acquired.absorbSnapshot.captured, nil)
-        ExpectEqual(acquired.absorbSnapshot.maximum, nil)
     end)
 
     It("releases all nameplate data for a loading screen", function()

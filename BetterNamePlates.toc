@@ -10,7 +10,6 @@ Namespace.lua
 Identity.lua
 Config.lua
 HealthFormat.lua
-AbsorbPrediction.lua
 DisplayText.lua
 NpcClassification.lua
 TargetIndicator.lua

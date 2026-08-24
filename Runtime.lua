@@ -1,7 +1,6 @@
 local _, namespace = ...
 
 local Config = namespace.Config
-local AbsorbPrediction = namespace.AbsorbPrediction
 local Appearance = namespace.Appearance
 local AuraDisplay = namespace.AuraDisplay
 local CastDuration = namespace.CastDuration
@@ -31,21 +30,6 @@ function Runtime:AdvanceRefreshClock(current, elapsed, interval)
     end
 
     return false, accumulated
-end
-
-function Runtime:CreateAbsorbUpdateApi()
-    return {
-        predict = UnitGetDetailedHealPrediction,
-        enums = {
-            defaultMaximumHealth =
-                Enum.UnitMaximumHealthMode.Default,
-            maximumHealthClamp =
-                Enum.UnitDamageAbsorbClampMode.MaximumHealth,
-            missingHealthClamp = Enum.UnitDamageAbsorbClampMode
-                .MissingHealthWithoutIncomingHeals,
-            immediate = Enum.StatusBarInterpolation.Immediate,
-        },
-    }
 end
 
 function Runtime:SetCastActive(unit, view, isActive)
@@ -214,49 +198,6 @@ local function createAuraLayer(healthBar, anchor, frameStrata, frameLevel)
     return layer
 end
 
-local function createAbsorbPrediction(view, width)
-    if not CreateUnitHealPredictionCalculator or
-        not UnitGetDetailedHealPrediction then
-        return
-    end
-
-    view.absorbCalculator = CreateUnitHealPredictionCalculator()
-    view.absorbSnapshot = view.absorbSnapshot or {}
-    view.absorbSnapshot.captured = nil
-    view.absorbSnapshot.maximum = nil
-    view.absorbClip = CreateFrame("Frame", nil, view.health)
-    view.absorbClip:SetAllPoints(view.health)
-    view.absorbClip:SetClipsChildren(true)
-    view.absorbClip:SetFrameLevel(view.health:GetFrameLevel())
-
-    view.absorb = CreateFrame("StatusBar", nil, view.absorbClip)
-    view.absorb:SetFrameLevel(view.health:GetFrameLevel())
-    view.absorb:SetWidth(width or Config.healthWidth)
-    view.absorb:SetPoint(
-        "TOPLEFT",
-        view.health:GetStatusBarTexture(),
-        "TOPRIGHT"
-    )
-    view.absorb:SetPoint(
-        "BOTTOMLEFT",
-        view.health:GetStatusBarTexture(),
-        "BOTTOMRIGHT"
-    )
-    view.absorb:SetStatusBarTexture(
-        "Interface\\RaidFrame\\Shield-Fill"
-    )
-
-    AbsorbPrediction:Configure(view.absorbCalculator, {
-        maximumHealthClamp =
-            Enum.UnitDamageAbsorbClampMode.MaximumHealth,
-        healAbsorbMaximumHealth =
-            Enum.UnitHealAbsorbClampMode.MaximumHealth,
-        healAbsorbTotal = Enum.UnitHealAbsorbMode.Total,
-        incomingHealMissingHealth =
-            Enum.UnitIncomingHealClampMode.MissingHealth,
-    })
-end
-
 local function createLightweightView()
     local layout = FrameLayout:GetLightweightLayout(Config)
     local view = CreateFrame("Frame")
@@ -283,8 +224,6 @@ local function createLightweightView()
         Config.colors.background[3],
         Config.colors.background[4]
     )
-    createAbsorbPrediction(view, layout.width)
-
     local name = health:CreateFontString(nil, "OVERLAY")
 
     view.name = name
@@ -369,8 +308,6 @@ local function createPlateView(basePlate)
         Config.colors.background[3],
         Config.colors.background[4]
     )
-
-    createAbsorbPrediction(view)
 
     view.targetIndicator = createTargetIndicator(view.health)
     view.hoverIndicator = createSelectionBorder(view.health)
@@ -1008,7 +945,7 @@ function Runtime:GetPlayerRole()
     )
 end
 
-function Runtime:UpdateHealth(unit, shouldCaptureAbsorb)
+function Runtime:UpdateHealth(unit)
     local view = self.activePlates[unit]
 
     if not view then
@@ -1088,8 +1025,7 @@ function Runtime:UpdateHealth(unit, shouldCaptureAbsorb)
         unit,
         view,
         health,
-        maximum,
-        shouldCaptureAbsorb
+        maximum
     )
 
     if issecretvalue and
@@ -1250,39 +1186,15 @@ function Runtime:ReleaseLightweightView(view)
     view.blizzardAlpha = nil
     view.blizzardAurasAlpha = nil
 
-    if view.absorbSnapshot then
-        view.absorbSnapshot.captured = nil
-        view.absorbSnapshot.maximum = nil
-    end
-
     self.lightweightPool[#self.lightweightPool + 1] = view
 end
 
-function Runtime:UpdateHealthValues(
-    unit,
-    view,
-    health,
-    maximum,
-    shouldCaptureAbsorb
-)
-    if view.absorbCalculator and self.absorbUpdateApi then
-        AbsorbPrediction:Update(
-            unit,
-            view.absorbCalculator,
-            view.health,
-            view.absorb,
-            self.absorbUpdateApi,
-            view.absorbSnapshot,
-            shouldCaptureAbsorb
-        )
-        return
-    end
-
+function Runtime:UpdateHealthValues(_, view, health, maximum)
     view.health:SetMinMaxValues(0, maximum)
     view.health:SetValue(health)
 end
 
-function Runtime:UpdateLightweightHealth(unit, shouldCaptureAbsorb)
+function Runtime:UpdateLightweightHealth(unit)
     local view = self.lightweightPlates[unit]
 
     if not view then
@@ -1293,28 +1205,8 @@ function Runtime:UpdateLightweightHealth(unit, shouldCaptureAbsorb)
         unit,
         view,
         UnitHealth(unit),
-        UnitHealthMax(unit),
-        shouldCaptureAbsorb
+        UnitHealthMax(unit)
     )
-end
-
-function Runtime:ResetAbsorbSnapshots()
-    local function resetView(view)
-        if not view.absorbSnapshot then
-            return
-        end
-
-        view.absorbSnapshot.captured = nil
-        view.absorbSnapshot.maximum = nil
-    end
-
-    for _, view in pairs(self.activePlates) do
-        resetView(view)
-    end
-
-    for _, view in pairs(self.lightweightPlates) do
-        resetView(view)
-    end
 end
 
 function Runtime:ShowLightweightPlate(unit, basePlate)
@@ -1615,10 +1507,6 @@ function Runtime:OnEvent(event, unit, _, spellID)
         return
     end
 
-    if event == "PLAYER_REGEN_ENABLED" then
-        self:ResetAbsorbSnapshots()
-    end
-
     if NameplateStacking:ShouldApplyOnEvent(
         event,
         self.stackingPending
@@ -1634,12 +1522,7 @@ function Runtime:OnEvent(event, unit, _, spellID)
     elseif event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH" then
         self:UpdateLightweightHealth(unit)
         self:UpdateHealth(unit)
-    elseif event == "UNIT_ABSORB_AMOUNT_CHANGED" then
-        self:UpdateLightweightHealth(unit, true)
-        self:UpdateHealth(unit, true)
-    elseif event == "UNIT_HEAL_PREDICTION" or
-        event == "UNIT_HEAL_ABSORB_AMOUNT_CHANGED" or
-        event == "UNIT_FACTION" or
+    elseif event == "UNIT_FACTION" or
         event == "UNIT_THREAT_SITUATION_UPDATE" then
         self:UpdateHealth(unit)
     elseif event == "UNIT_AURA" then
@@ -1691,10 +1574,6 @@ function Runtime:Enable()
     self.auraTimeFormatter:AddBreakpoint(
         AuraDisplay:GetDurationBreakpoint()
     )
-    if CreateUnitHealPredictionCalculator and
-        UnitGetDetailedHealPrediction then
-        self.absorbUpdateApi = self:CreateAbsorbUpdateApi()
-    end
     self.frame = CreateFrame("Frame")
     self.frame:SetScript("OnEvent", function(_, event, ...)
         self:OnEvent(event, ...)
@@ -1719,9 +1598,6 @@ function Runtime:Enable()
         "SPELLS_CHANGED",
         "UNIT_HEALTH",
         "UNIT_MAXHEALTH",
-        "UNIT_HEAL_PREDICTION",
-        "UNIT_ABSORB_AMOUNT_CHANGED",
-        "UNIT_HEAL_ABSORB_AMOUNT_CHANGED",
         "UNIT_FACTION",
         "UNIT_AURA",
         "UNIT_THREAT_SITUATION_UPDATE",
@@ -1766,7 +1642,6 @@ function Runtime:Disable()
     self.hoverRefreshElapsed = nil
     self.castRefreshElapsed = nil
     self.frameSuppressionElapsed = nil
-    self.absorbUpdateApi = nil
     self.castTimeFormatter = nil
     self.auraTimeFormatter = nil
     self:ReleaseAllPlates()

@@ -92,4 +92,28 @@ Describe("Nameplate frame layout", function()
         -- Then
         ExpectEqual(shouldClip, false)
     end)
+
+    It("scales every lightweight plate dimension proportionally", function()
+        -- Given
+        local namespace = {}
+        local frameLayout = LoadAddonFile("FrameLayout.lua", namespace)
+        local config = {
+            healthWidth = 135,
+            healthHeight = 17,
+            nameFontSize = 10,
+            contentPadding = 3,
+            borderThickness = 1.2,
+            lightweightScale = 0.6,
+        }
+
+        -- When
+        local layout = frameLayout:GetLightweightLayout(config)
+
+        -- Then
+        ExpectEqual(layout.width, 81)
+        ExpectEqual(layout.height, 10.2)
+        ExpectEqual(layout.fontSize, 6)
+        ExpectEqual(layout.padding, 1.8)
+        ExpectEqual(layout.borderThickness, 0.72)
+    end)
 end)

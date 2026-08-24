@@ -9,6 +9,7 @@ Describe("Fixed Jundies presentation", function()
         -- Then
         ExpectEqual(config.healthWidth, 135)
         ExpectEqual(config.healthHeight, 17)
+        ExpectEqual(config.lightweightScale, 0.6)
         ExpectEqual(config.plateOffsetY, -10)
         ExpectEqual(config.contentPadding, 3)
         ExpectEqual(config.targetBorderThickness, 2)

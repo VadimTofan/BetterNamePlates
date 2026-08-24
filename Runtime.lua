@@ -214,7 +214,7 @@ local function createAuraLayer(healthBar, anchor, frameStrata, frameLevel)
     return layer
 end
 
-local function createAbsorbPrediction(view)
+local function createAbsorbPrediction(view, width)
     if not CreateUnitHealPredictionCalculator or
         not UnitGetDetailedHealPrediction then
         return
@@ -231,7 +231,7 @@ local function createAbsorbPrediction(view)
 
     view.absorb = CreateFrame("StatusBar", nil, view.absorbClip)
     view.absorb:SetFrameLevel(view.health:GetFrameLevel())
-    view.absorb:SetWidth(Config.healthWidth)
+    view.absorb:SetWidth(width or Config.healthWidth)
     view.absorb:SetPoint(
         "TOPLEFT",
         view.health:GetStatusBarTexture(),
@@ -258,11 +258,12 @@ local function createAbsorbPrediction(view)
 end
 
 local function createLightweightView()
+    local layout = FrameLayout:GetLightweightLayout(Config)
     local view = CreateFrame("Frame")
     local health = CreateFrame("StatusBar", nil, view)
 
     view.health = health
-    view:SetSize(Config.healthWidth, Config.healthHeight)
+    view:SetSize(layout.width, layout.height)
     health:SetAllPoints(view)
     health:SetStatusBarTexture(Config.texture)
     health:SetStatusBarColor(
@@ -271,7 +272,7 @@ local function createLightweightView()
         Config.colors.safe[3],
         Config.colors.safe[4]
     )
-    createBorder(health)
+    createBorder(health, layout.borderThickness)
 
     local background = health:CreateTexture(nil, "BACKGROUND")
 
@@ -282,12 +283,12 @@ local function createLightweightView()
         Config.colors.background[3],
         Config.colors.background[4]
     )
-    createAbsorbPrediction(view)
+    createAbsorbPrediction(view, layout.width)
 
     local name = health:CreateFontString(nil, "OVERLAY")
 
     view.name = name
-    name:SetFont(Config.font, Config.nameFontSize, Config.nameFontFlags)
+    name:SetFont(Config.font, layout.fontSize, Config.nameFontFlags)
     name:SetShadowColor(
         Config.nameShadowColor[1],
         Config.nameShadowColor[2],
@@ -295,17 +296,17 @@ local function createLightweightView()
         Config.nameShadowColor[4]
     )
     name:SetShadowOffset(
-        Config.nameShadowOffset,
-        -Config.nameShadowOffset
+        Config.nameShadowOffset * Config.lightweightScale,
+        -Config.nameShadowOffset * Config.lightweightScale
     )
     name:SetPoint(
         "LEFT",
         health,
         "LEFT",
-        Config.contentPadding,
+        layout.padding,
         0
     )
-    name:SetWidth(Config.healthWidth - Config.contentPadding * 2)
+    name:SetWidth(layout.width - layout.padding * 2)
     name:SetJustifyH("LEFT")
 
     return view

@@ -2,6 +2,10 @@ local _, namespace = ...
 
 local FrameLayout = {}
 
+local function scaleDimension(value, scale)
+    return math.floor(value * scale * 100 + 0.5) / 100
+end
+
 function FrameLayout:GetOverlayLevel(blizzardFrameLevel)
     return math.max(0, blizzardFrameLevel or 0) + 1
 end
@@ -33,6 +37,18 @@ end
 
 function FrameLayout:ShouldClipHealthChildren()
     return false
+end
+
+function FrameLayout:GetLightweightLayout(config)
+    local scale = config.lightweightScale
+
+    return {
+        width = scaleDimension(config.healthWidth, scale),
+        height = scaleDimension(config.healthHeight, scale),
+        fontSize = scaleDimension(config.nameFontSize, scale),
+        padding = scaleDimension(config.contentPadding, scale),
+        borderThickness = scaleDimension(config.borderThickness, scale),
+    }
 end
 
 namespace.FrameLayout = FrameLayout

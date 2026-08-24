@@ -3,6 +3,7 @@ local _, namespace = ...
 local Config = {
     healthWidth = 135,
     healthHeight = 17,
+    lightweightScale = 0.6,
     plateOffsetY = -10,
     contentPadding = 3,
     targetBorderThickness = 2,

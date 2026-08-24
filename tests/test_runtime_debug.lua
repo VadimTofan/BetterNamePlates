@@ -1,5 +1,107 @@
 Describe("Runtime diagnostics", function()
-    It("updates lightweight healthbars directly", function()
+    It("resizes only the targeted health section", function()
+        -- Given
+        local healthSectionHeight
+        local healthFillHeight
+        local absorbHeight
+        local markerHeight
+        local leftArrowHeight
+        local rightArrowHeight
+        local castResizeCount = 0
+        local iconResizeCount = 0
+        local namespace = {
+            Config = {
+                absorbInset = 1,
+                castHeight = 11.2,
+                contentPadding = 3,
+                healthHeight = 17,
+                healthInset = 1,
+                targetHealthScale = 1.25,
+            },
+            CombatState = {},
+            FrameLayout = LoadAddonFile("FrameLayout.lua", {}),
+            Rules = {},
+            TargetIndicator = LoadAddonFile("TargetIndicator.lua", {}),
+        }
+        local runtime = LoadAddonFile("Runtime.lua", namespace)
+        local view = {
+            SetHeight = function()
+            end,
+            emptyBar = {
+                SetHeight = function(_, height)
+                    healthSectionHeight = height
+                end,
+            },
+            health = {
+                SetHeight = function(_, height)
+                    healthFillHeight = height
+                end,
+            },
+            absorbBar = {
+                SetHeight = function(_, height)
+                    absorbHeight = height
+                end,
+            },
+            healthForeground = {
+                SetHeight = function()
+                end,
+            },
+            healthMarker = {
+                SetHeight = function(_, height)
+                    markerHeight = height
+                end,
+            },
+            name = {
+                SetHeight = function()
+                end,
+            },
+            healthText = {
+                SetHeight = function()
+                end,
+            },
+            healthPercentage = {
+                SetHeight = function()
+                end,
+            },
+            targetIndicator = {
+                leftArrow = {
+                    SetHeight = function(_, height)
+                        leftArrowHeight = height
+                    end,
+                },
+                rightArrow = {
+                    SetHeight = function(_, height)
+                        rightArrowHeight = height
+                    end,
+                },
+            },
+            cast = {
+                SetHeight = function()
+                    castResizeCount = castResizeCount + 1
+                end,
+            },
+            castIconFrame = {
+                SetHeight = function()
+                    iconResizeCount = iconResizeCount + 1
+                end,
+            },
+        }
+
+        -- When
+        runtime:ApplyTargetHealthHeight(view, true)
+
+        -- Then
+        ExpectEqual(healthSectionHeight, 21.25)
+        ExpectEqual(healthFillHeight, 19.25)
+        ExpectEqual(absorbHeight, 19.25)
+        ExpectEqual(markerHeight, 19.25)
+        ExpectEqual(leftArrowHeight, 21.25)
+        ExpectEqual(rightArrowHeight, 21.25)
+        ExpectEqual(castResizeCount, 0)
+        ExpectEqual(iconResizeCount, 0)
+    end)
+
+    It("updates nameplate healthbars directly", function()
         -- Given
         local minimum
         local maximum
@@ -37,8 +139,9 @@ Describe("Runtime diagnostics", function()
         ExpectEqual(value, 75)
     end)
 
-    It("reuses released lightweight nameplates", function()
+    It("updates a single HP text layer", function()
         -- Given
+        local primaryText
         local namespace = {
             Config = {},
             CombatState = {},
@@ -46,29 +149,153 @@ Describe("Runtime diagnostics", function()
             Rules = {},
         }
         local runtime = LoadAddonFile("Runtime.lua", namespace)
-        local created = 0
-        local pooledView = {
-            blizzardAlpha = 0.75,
-            blizzardAurasAlpha = 0.5,
-            Hide = function()
-            end,
-            SetParent = function()
+        local primary = {
+            SetText = function(_, text)
+                primaryText = text
             end,
         }
-
         -- When
-        runtime:ReleaseLightweightView(pooledView)
-        local acquired = runtime:AcquireLightweightView(function()
-            created = created + 1
-            return {}
-        end)
+        runtime:SetHealthText(primary, "6.5M")
 
         -- Then
-        ExpectEqual(acquired, pooledView)
-        ExpectEqual(created, 0)
-        ExpectEqual(#runtime.lightweightPool, 0)
-        ExpectEqual(acquired.blizzardAlpha, nil)
-        ExpectEqual(acquired.blizzardAurasAlpha, nil)
+        ExpectEqual(primaryText, "6.5M")
+    end)
+
+    It("passes calculated absorb values directly to the absorb bar", function()
+        -- Given
+        local previousPrediction = UnitGetDetailedHealPrediction
+        local populatedUnit
+        local maximum = {}
+        local absorbs = {}
+        local receivedMinimum
+        local receivedMaximum
+        local receivedValue
+        local receivedInterpolation
+        local interpolation = {}
+        local calculator = {
+            GetMaximumHealth = function()
+                return maximum
+            end,
+            GetDamageAbsorbs = function()
+                return absorbs
+            end,
+        }
+        local namespace = {
+            Config = {},
+            CombatState = {},
+            FrameLayout = {},
+            Rules = {},
+        }
+        local runtime = LoadAddonFile("Runtime.lua", namespace)
+        local view = {
+            absorbCalculator = calculator,
+            absorbInterpolation = interpolation,
+            absorbBar = {
+                SetMinMaxValues = function(_, minimumValue, maximumValue)
+                    receivedMinimum = minimumValue
+                    receivedMaximum = maximumValue
+                end,
+                SetValue = function(_, value, interpolationMode)
+                    receivedValue = value
+                    receivedInterpolation = interpolationMode
+                end,
+            },
+        }
+        UnitGetDetailedHealPrediction = function(unit, _, receivedCalculator)
+            populatedUnit = unit
+            ExpectEqual(receivedCalculator, calculator)
+        end
+
+        -- When
+        runtime:UpdateAbsorbValues("nameplate1", view)
+        UnitGetDetailedHealPrediction = previousPrediction
+
+        -- Then
+        ExpectEqual(populatedUnit, "nameplate1")
+        ExpectEqual(receivedMinimum, 0)
+        ExpectEqual(receivedMaximum, maximum)
+        ExpectEqual(receivedValue, absorbs)
+        ExpectEqual(receivedInterpolation, interpolation)
+    end)
+
+    It("refreshes health when an absorb amount changes", function()
+        -- Given
+        local namespace = {
+            Config = {},
+            CombatState = {},
+            FrameLayout = {},
+            Interrupts = {
+                IsPlayerInterruptCast = function()
+                    return false
+                end,
+                IsCooldownEvent = function()
+                    return false
+                end,
+            },
+            NameplateStacking = {
+                ShouldApplyOnEvent = function()
+                    return false
+                end,
+            },
+            Rules = {},
+        }
+        local runtime = LoadAddonFile("Runtime.lua", namespace)
+        local refreshedUnit
+
+        runtime.UpdateHealth = function(_, unit)
+            refreshedUnit = unit
+        end
+
+        -- When
+        runtime:OnEvent("UNIT_ABSORB_AMOUNT_CHANGED", "nameplate2")
+
+        -- Then
+        ExpectEqual(refreshedUnit, "nameplate2")
+    end)
+
+    It("forces the targeted absorb bar full for diagnostics", function()
+        -- Given
+        local previousUnitIsUnit = UnitIsUnit
+        local minimum
+        local maximum
+        local value
+        local namespace = {
+            Config = {},
+            CombatState = {},
+            DisplayText = {
+                SafeValue = function(value)
+                    return value
+                end,
+            },
+            FrameLayout = {},
+            Rules = {},
+        }
+        local runtime = LoadAddonFile("Runtime.lua", namespace)
+
+        runtime.activePlates.nameplate1 = {
+            absorbBar = {
+                SetMinMaxValues = function(_, receivedMinimum, receivedMaximum)
+                    minimum = receivedMinimum
+                    maximum = receivedMaximum
+                end,
+                SetValue = function(_, receivedValue)
+                    value = receivedValue
+                end,
+            },
+        }
+        UnitIsUnit = function(unit, target)
+            return unit == "nameplate1" and target == "target"
+        end
+
+        -- When
+        local found = runtime:DebugForceTargetAbsorb()
+        UnitIsUnit = previousUnitIsUnit
+
+        -- Then
+        ExpectEqual(found, true)
+        ExpectEqual(minimum, 0)
+        ExpectEqual(maximum, 1)
+        ExpectEqual(value, 1)
     end)
 
     It("releases all nameplate data for a loading screen", function()
@@ -156,16 +383,11 @@ Describe("Runtime diagnostics", function()
         runtime.activePlates = {}
         runtime:RefreshUpdateDriver()
         local handlerWithoutPlates = assignedHandler
-        runtime.lightweightPlates.nameplate2 = {}
-        runtime:RefreshUpdateDriver()
-        local handlerWithLightweightPlate = assignedHandler
-        runtime.lightweightPlates = {}
         runtime.activePlates.nameplate1 = {}
         runtime:RefreshUpdateDriver()
 
         -- Then
         ExpectEqual(handlerWithoutPlates, nil)
-        ExpectEqual(handlerWithLightweightPlate, updateHandler)
         ExpectEqual(assignedHandler, updateHandler)
     end)
 

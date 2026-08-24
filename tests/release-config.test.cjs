@@ -50,4 +50,23 @@ assert.ok(
   "release workflow must map the configured CurseForge secret",
 );
 
+const runtime = readRepositoryFile("Runtime.lua");
+const healthFontUses = runtime.match(/Config\.healthFont(?!Size)/g) ?? [];
+
+assert.equal(
+  healthFontUses.length,
+  2,
+  "HP and HP percentage must use healthFont without duplicate layers",
+);
+
+const castFontUses = runtime.match(/Config\.castFont(?!Size)/g) ?? [];
+
+assert.equal(
+  castFontUses.length,
+  2,
+  "cast spell names and timers must use castFont",
+);
+
 console.log("PASS validates tag-driven CurseForge release configuration");
+console.log("PASS applies the configured health font to every health text layer");
+console.log("PASS applies the configured cast font to spell names and timers");

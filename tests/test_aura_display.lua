@@ -8,7 +8,19 @@ Describe("Player debuff display", function()
         local filter = auraDisplay:GetFilter()
 
         -- Then
-        ExpectEqual(filter, "HARMFUL|PLAYER")
+        ExpectEqual(filter, "HARMFUL|PLAYER|!CROWD_CONTROL")
+    end)
+
+    It("selects engine-classified crowd control from every source", function()
+        -- Given
+        local namespace = {}
+        local auraDisplay = LoadAddonFile("AuraDisplay.lua", namespace)
+
+        -- When
+        local filter = auraDisplay:GetCrowdControlFilter()
+
+        -- Then
+        ExpectEqual(filter, "HARMFUL|CROWD_CONTROL")
     end)
 
     It("lays out five dot icons above the healthbar", function()
@@ -29,6 +41,25 @@ Describe("Player debuff display", function()
         ExpectEqual(options.layout.elementHeight, 22.5)
         ExpectEqual(options.layout.elementSpacing, 2)
         ExpectEqual(options.layout.maximumLineSize, 122.5)
+    end)
+
+    It("scales player debuff icons spacing and text uniformly", function()
+        -- Given
+        local namespace = {}
+        local auraDisplay = LoadAddonFile("AuraDisplay.lua", namespace)
+
+        -- When
+        local layout = auraDisplay:GetDebuffLayout({
+            auraIconSize = 18,
+            auraIconSpacing = 2,
+            auraFontSize = 10,
+            debuffScale = 0.5,
+        })
+
+        -- Then
+        ExpectEqual(layout.iconSize, 9)
+        ExpectEqual(layout.iconSpacing, 1)
+        ExpectEqual(layout.fontSize, 5)
     end)
 
     It("anchors debuffs at the top right and grows them left", function()
@@ -102,7 +133,7 @@ Describe("Player debuff display", function()
         ExpectEqual(border.color[4], 1)
     end)
 
-    It("scales important enemy buff icons to one hundred twenty-five percent", function()
+    It("uses the base size for important enemy buff and crowd-control icons", function()
         -- Given
         local namespace = {}
         local auraDisplay = LoadAddonFile("AuraDisplay.lua", namespace)
@@ -111,7 +142,7 @@ Describe("Player debuff display", function()
         local iconSize = auraDisplay:GetImportantBuffIconSize(18)
 
         -- Then
-        ExpectEqual(iconSize, 22.5)
+        ExpectEqual(iconSize, 18)
     end)
 
     It("enables mouseover tooltips only for important enemy buffs", function()
@@ -130,20 +161,20 @@ Describe("Player debuff display", function()
         ExpectEqual(interaction.tooltipAnchor, "ANCHOR_RIGHT")
     end)
 
-    It("keeps all important buff categories on one horizontal row", function()
+    It("keeps crowd control and important buffs on one horizontal row", function()
         -- Given
         local namespace = {}
         local auraDisplay = LoadAddonFile("AuraDisplay.lua", namespace)
 
         -- When
-        local maximumLineSize = auraDisplay:GetImportantBuffMaximumLineSize({
+        local maximumLineSize = auraDisplay:GetRightAuraMaximumLineSize({
             iconSize = 18,
             iconSpacing = 2,
             maxCount = 5,
         })
 
         -- Then
-        ExpectEqual(maximumLineSize, 300)
+        ExpectEqual(maximumLineSize, 400)
     end)
 
     It("formats debuff durations as bare whole numbers", function()

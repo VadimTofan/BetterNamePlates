@@ -18,8 +18,6 @@ local TargetIndicator = namespace.TargetIndicator
 local Runtime = {
     activePlates = {},
     activeCasts = {},
-    lightweightPlates = {},
-    lightweightPool = {},
 }
 
 function Runtime:AdvanceRefreshClock(current, elapsed, interval)
@@ -46,8 +44,7 @@ function Runtime:RefreshUpdateDriver()
         return
     end
 
-    local hasTrackedPlates = next(self.activePlates) or
-        next(self.lightweightPlates)
+    local hasTrackedPlates = next(self.activePlates)
     local handler = hasTrackedPlates and
         self.onUpdateHandler or nil
 
@@ -65,6 +62,16 @@ end
 
 local function setTextureColor(texture, color)
     texture:SetColorTexture(color[1], color[2], color[3], color[4])
+end
+
+function Runtime:SetHealthText(fontString, text)
+    fontString:SetText(text)
+end
+
+local function setNameText(view, text)
+    for _, layer in ipairs(view.nameLayers) do
+        layer:SetText(text)
+    end
 end
 
 local function createBorder(frame, thickness, color)
@@ -198,79 +205,122 @@ local function createAuraLayer(healthBar, anchor, frameStrata, frameLevel)
     return layer
 end
 
-local function createLightweightView()
-    local layout = FrameLayout:GetLightweightLayout(Config)
-    local view = CreateFrame("Frame")
-    local health = CreateFrame("StatusBar", nil, view)
+local function applyHealthLayerLevels(view)
+    local levels = FrameLayout:GetHealthLayerLevels(view:GetFrameLevel())
 
-    view.health = health
-    view:SetSize(layout.width, layout.height)
-    health:SetAllPoints(view)
-    health:SetStatusBarTexture(Config.texture)
-    health:SetStatusBarColor(
-        Config.colors.safe[1],
-        Config.colors.safe[2],
-        Config.colors.safe[3],
-        Config.colors.safe[4]
-    )
-    createBorder(health, layout.borderThickness)
-
-    local background = health:CreateTexture(nil, "BACKGROUND")
-
-    background:SetAllPoints(health)
-    background:SetColorTexture(
-        Config.colors.background[1],
-        Config.colors.background[2],
-        Config.colors.background[3],
-        Config.colors.background[4]
-    )
-    local name = health:CreateFontString(nil, "OVERLAY")
-
-    view.name = name
-    name:SetFont(Config.font, layout.fontSize, Config.nameFontFlags)
-    name:SetShadowColor(
-        Config.nameShadowColor[1],
-        Config.nameShadowColor[2],
-        Config.nameShadowColor[3],
-        Config.nameShadowColor[4]
-    )
-    name:SetShadowOffset(
-        Config.nameShadowOffset * Config.lightweightScale,
-        -Config.nameShadowOffset * Config.lightweightScale
-    )
-    name:SetPoint(
-        "LEFT",
-        health,
-        "LEFT",
-        layout.padding,
-        0
-    )
-    name:SetWidth(layout.width - layout.padding * 2)
-    name:SetJustifyH("LEFT")
-
-    return view
+    view.emptyBar:SetFrameLevel(levels.empty)
+    view.health:SetFrameLevel(levels.health)
+    view.absorbBar:SetFrameLevel(levels.absorb)
+    view.healthForeground:SetFrameLevel(levels.foreground)
 end
 
-local function attachLightweightView(view, basePlate, unit)
-    local blizzardUnitFrame = basePlate.UnitFrame
-    local blizzardFrameLevel = blizzardUnitFrame and
-        blizzardUnitFrame:GetFrameLevel() or basePlate:GetFrameLevel()
-
-    view:SetParent(basePlate)
-    view:SetFrameStrata(
-        blizzardUnitFrame and blizzardUnitFrame:GetFrameStrata() or
-            basePlate:GetFrameStrata()
-    )
-    view:SetFrameLevel(FrameLayout:GetOverlayLevel(blizzardFrameLevel))
-    if view.SetIgnoreParentScale then
-        view:SetIgnoreParentScale(true)
+local function createAbsorbCalculator()
+    if not CreateUnitHealPredictionCalculator then
+        return nil
     end
-    view:SetScale(Config.scale)
-    view:ClearAllPoints()
-    view:SetPoint("CENTER", basePlate, "CENTER", 0, Config.plateOffsetY)
-    view.name:SetText(DisplayText:ShortenName(UnitName(unit)))
-    view.unit = unit
-    view.blizzardUnitFrame = blizzardUnitFrame
+
+    local calculator = CreateUnitHealPredictionCalculator()
+
+    calculator:SetMaximumHealthMode(
+        Enum.UnitMaximumHealthMode[Config.absorbMaximumHealthMode]
+    )
+    calculator:SetDamageAbsorbClampMode(
+        Enum.UnitDamageAbsorbClampMode.MaximumHealth
+    )
+
+    return calculator
+end
+
+local function createHealthMarkerAlphaCurve()
+    local curve = C_CurveUtil.CreateCurve()
+
+    curve:SetType(Enum.LuaCurveType.Step)
+
+    for _, point in ipairs(
+        FrameLayout:GetHealthMarkerAlphaCurvePoints()
+    ) do
+        curve:AddPoint(point.x, point.y)
+    end
+
+    return curve
+end
+
+local function createHealthLayers(
+    view,
+    width,
+    height,
+    outlineThickness,
+    healthInset,
+    absorbInset
+)
+    local healthDimensions = FrameLayout:GetHealthDimensions(
+        width,
+        height,
+        healthInset,
+        Config.healthRightExtension
+    )
+    local absorbDimensions = FrameLayout:GetInsetDimensions(
+        width,
+        height,
+        absorbInset
+    )
+    local absorbPlacement = FrameLayout:GetAbsorbPlacement()
+    local markerPlacement = FrameLayout:GetHealthMarkerPlacement()
+
+    view.emptyBar = CreateFrame("StatusBar", nil, view)
+    view.emptyBar:SetSize(width, height)
+    view.emptyBar:SetStatusBarTexture(Config.texture)
+    view.emptyBar:SetMinMaxValues(0, 1)
+    view.emptyBar:SetValue(1)
+    view.emptyBar:SetClipsChildren(absorbPlacement.clipsChildren)
+    setStatusBarColor(view.emptyBar, Config.colors.background)
+
+    view.health = CreateFrame("StatusBar", nil, view)
+    view.health:SetSize(healthDimensions.width, healthDimensions.height)
+    view.health:SetStatusBarTexture(Config.texture)
+    view.health:SetOrientation(Config.healthOrientation)
+    view.health:SetReverseFill(Config.healthReverseFill)
+    view.health:SetPoint(
+        "LEFT",
+        view.emptyBar,
+        "LEFT",
+        healthDimensions.leftInset,
+        0
+    )
+
+    view.absorbBar = CreateFrame("StatusBar", nil, view.emptyBar)
+    view.absorbBar:SetSize(absorbDimensions.width, absorbDimensions.height)
+    view.absorbBar:SetStatusBarTexture(Config.absorbTexture)
+    view.absorbBar:SetOrientation(Config.absorbOrientation)
+    view.absorbBar:SetReverseFill(Config.absorbReverseFill)
+    view.absorbBar:SetStatusBarColor(1, 1, 1, Config.absorbOpacity)
+    view.absorbBar:SetMinMaxValues(0, 1)
+    view.absorbBar:SetValue(0)
+    view.absorbBar:SetPoint(
+        absorbPlacement.point,
+        view.health:GetStatusBarTexture(),
+        absorbPlacement.relativePoint
+    )
+    view.absorbCalculator = createAbsorbCalculator()
+    view.absorbInterpolation = Enum.StatusBarInterpolation.Immediate
+
+    view.healthForeground = CreateFrame("Frame", nil, view)
+    view.healthForeground:SetSize(width, height)
+
+    view.healthMarker =
+        view.healthForeground:CreateTexture(nil, "ARTWORK")
+    view.healthMarker:SetSize(Config.healthMarkerWidth, healthDimensions.height)
+    setTextureColor(view.healthMarker, Config.colors.healthMarker)
+    view.healthMarker:SetPoint(
+        markerPlacement.point,
+        view.health:GetStatusBarTexture(),
+        markerPlacement.relativePoint
+    )
+    view.healthMarkerAlphaCurve = createHealthMarkerAlphaCurve()
+    view.healthMarker:Hide()
+
+    createBorder(view.healthForeground, outlineThickness)
+    applyHealthLayerLevels(view)
 end
 
 local function createPlateView(basePlate)
@@ -291,30 +341,27 @@ local function createPlateView(basePlate)
     view:SetSize(Config.healthWidth, Config.healthHeight + Config.castHeight)
     view:SetPoint("CENTER", basePlate, "CENTER", 0, Config.plateOffsetY)
 
-    view.health = CreateFrame("StatusBar", nil, view)
-    view.health:SetSize(Config.healthWidth, Config.healthHeight)
-    view.health:SetPoint("TOP", view, "TOP")
-    view.health:SetStatusBarTexture(Config.texture)
+    createHealthLayers(
+        view,
+        Config.healthWidth,
+        Config.healthHeight,
+        Config.healthOutlineThickness,
+        Config.healthInset,
+        Config.absorbInset
+    )
+    view.emptyBar:SetPoint("TOP", view, "TOP")
+    view.healthForeground:SetPoint("TOP", view, "TOP")
     view.health:SetClipsChildren(
         FrameLayout:ShouldClipHealthChildren()
     )
-    createBorder(view.health)
 
-    view.healthBackground = view.health:CreateTexture(nil, "BACKGROUND")
-    view.healthBackground:SetAllPoints()
-    view.healthBackground:SetColorTexture(
-        Config.colors.background[1],
-        Config.colors.background[2],
-        Config.colors.background[3],
-        Config.colors.background[4]
-    )
+    view.targetIndicator = createTargetIndicator(view.healthForeground)
+    view.hoverIndicator = createSelectionBorder(view.healthForeground)
+    view.raidTargetIcon = createRaidTargetIndicator(view.healthForeground)
 
-    view.targetIndicator = createTargetIndicator(view.health)
-    view.hoverIndicator = createSelectionBorder(view.health)
-    view.raidTargetIcon = createRaidTargetIndicator(view.health)
-
-    view.focusOverlay = view.health:CreateTexture(nil, "OVERLAY", nil, 2)
-    view.focusOverlay:SetAllPoints(view.health)
+    view.focusOverlay =
+        view.healthForeground:CreateTexture(nil, "OVERLAY", nil, 2)
+    view.focusOverlay:SetAllPoints(view.healthForeground)
     view.focusOverlay:SetTexture(Config.focusTexture)
     view.focusOverlay:SetVertexColor(
         Config.colors.focusOverlay[1],
@@ -324,9 +371,11 @@ local function createPlateView(basePlate)
     )
     view.focusOverlay:SetAlpha(0)
 
-    view.focusBorder = CreateFrame("Frame", nil, view.health)
-    view.focusBorder:SetAllPoints(view.health)
-    view.focusBorder:SetFrameLevel(view.health:GetFrameLevel() + 2)
+    view.focusBorder = CreateFrame("Frame", nil, view.healthForeground)
+    view.focusBorder:SetAllPoints(view.healthForeground)
+    view.focusBorder:SetFrameLevel(
+        view.healthForeground:GetFrameLevel() + 2
+    )
     createBorder(
         view.focusBorder,
         Config.borderThickness,
@@ -334,53 +383,125 @@ local function createPlateView(basePlate)
     )
     view.focusBorder:Hide()
 
-    view.name = view.health:CreateFontString(nil, "OVERLAY")
-    view.name:SetFont(
-        Config.font,
+    local nameAnchor = FrameLayout:GetNameAnchor(2)
+    local outlineOffsets = FrameLayout:GetNameOutlineOffsets(
+        Config.nameOutlineThickness
+    )
+
+    view.nameLayers = {}
+
+    for _, offset in ipairs(outlineOffsets) do
+        local outline =
+            view.healthForeground:CreateFontString(nil, "OVERLAY")
+
+        outline:SetFont(
+            Config.nameFont,
+            Config.nameFontSize,
+            Config.nameFontFlags
+        )
+        outline:SetTextColor(
+            Config.nameOutlineColor[1],
+            Config.nameOutlineColor[2],
+            Config.nameOutlineColor[3],
+            Config.nameOutlineColor[4]
+        )
+        outline:SetPoint(
+            nameAnchor.point,
+            view.healthForeground,
+            nameAnchor.relativePoint,
+            nameAnchor.x + offset.x,
+            nameAnchor.y + offset.y
+        )
+        outline:SetHeight(Config.nameFontSize)
+        outline:SetWidth(Config.healthWidth)
+        outline:SetJustifyH("LEFT")
+        table.insert(view.nameLayers, outline)
+    end
+
+    local boldOffset = FrameLayout:GetNameBoldOffset(
+        Config.nameBoldOffset
+    )
+
+    view.nameBold =
+        view.healthForeground:CreateFontString(nil, "OVERLAY")
+    view.nameBold:SetFont(
+        Config.nameFont,
         Config.nameFontSize,
         Config.nameFontFlags
     )
-    view.name:SetShadowColor(
-        Config.nameShadowColor[1],
-        Config.nameShadowColor[2],
-        Config.nameShadowColor[3],
-        Config.nameShadowColor[4]
+    view.nameBold:SetPoint(
+        nameAnchor.point,
+        view.healthForeground,
+        nameAnchor.relativePoint,
+        nameAnchor.x + boldOffset.x,
+        nameAnchor.y + boldOffset.y
     )
-    view.name:SetShadowOffset(
-        Config.nameShadowOffset,
-        -Config.nameShadowOffset
-    )
-    view.name:SetPoint(
-        "LEFT",
-        view.health,
-        "LEFT",
-        Config.contentPadding,
-        0
-    )
-    view.name:SetHeight(
-        Config.healthHeight - Config.contentPadding * 2
-    )
-    view.name:SetWidth(80)
-    view.name:SetJustifyH("LEFT")
+    view.nameBold:SetHeight(Config.nameFontSize)
+    view.nameBold:SetWidth(Config.healthWidth)
+    view.nameBold:SetJustifyH("LEFT")
+    table.insert(view.nameLayers, view.nameBold)
 
-    view.healthText = view.health:CreateFontString(nil, "OVERLAY")
-    view.healthText:SetFont(Config.font, Config.healthFontSize, "OUTLINE")
+    view.name = view.healthForeground:CreateFontString(nil, "OVERLAY")
+    view.name:SetFont(
+        Config.nameFont,
+        Config.nameFontSize,
+        Config.nameFontFlags
+    )
+
+    view.name:SetPoint(
+        nameAnchor.point,
+        view.healthForeground,
+        nameAnchor.relativePoint,
+        nameAnchor.x,
+        nameAnchor.y
+    )
+    view.name:SetHeight(Config.nameFontSize)
+    view.name:SetWidth(Config.healthWidth)
+    view.name:SetJustifyH("LEFT")
+    table.insert(view.nameLayers, view.name)
+
+    local healthTextAnchors = FrameLayout:GetHealthTextAnchors(
+        Config.contentPadding
+    )
+
+    view.healthText = view.healthForeground:CreateFontString(nil, "OVERLAY")
+    view.healthText:SetFont(
+        Config.healthFont,
+        Config.healthFontSize,
+        "OUTLINE"
+    )
     view.healthText:SetPoint(
-        "RIGHT",
-        view.health,
-        "RIGHT",
-        -Config.contentPadding,
-        0
+        healthTextAnchors.health.point,
+        view.healthForeground,
+        healthTextAnchors.health.relativePoint,
+        healthTextAnchors.health.x,
+        healthTextAnchors.health.y
     )
     view.healthText:SetHeight(
         Config.healthHeight - Config.contentPadding * 2
     )
-
+    view.healthPercentage =
+        view.healthForeground:CreateFontString(nil, "OVERLAY")
+    view.healthPercentage:SetFont(
+        Config.healthFont,
+        Config.healthFontSize,
+        "OUTLINE"
+    )
+    view.healthPercentage:SetPoint(
+        healthTextAnchors.percentage.point,
+        view.healthForeground,
+        healthTextAnchors.percentage.relativePoint,
+        healthTextAnchors.percentage.x,
+        healthTextAnchors.percentage.y
+    )
+    view.healthPercentage:SetHeight(
+        Config.healthHeight - Config.contentPadding * 2
+    )
     view.cast = CreateFrame("StatusBar", nil, view)
     view.cast:SetSize(Config.healthWidth, Config.castHeight)
     view.cast:SetPoint(
         "TOP",
-        view.health,
+        view.healthForeground,
         "BOTTOM",
         0,
         -Config.castGap
@@ -407,7 +528,23 @@ local function createPlateView(basePlate)
     )
     createBorder(view.castForeground)
 
-    view.interruptMarkerFrame = CreateFrame("Frame", nil, view.cast)
+    view.interruptMarkerClip = CreateFrame("Frame", nil, view.cast)
+    view.interruptMarkerClip:SetSize(
+        FrameLayout:GetInterruptMarkerClipWidth(
+            Config.healthWidth,
+            Config.castMarkerMaximumProgress,
+            Config.castMarkerWidth
+        ),
+        Config.castHeight
+    )
+    view.interruptMarkerClip:SetPoint("LEFT", view.cast, "LEFT")
+    view.interruptMarkerClip:SetClipsChildren(true)
+    view.interruptMarkerClip:SetFrameLevel(
+        FrameLayout:GetCastForegroundLevel(view.cast:GetFrameLevel())
+    )
+
+    view.interruptMarkerFrame =
+        CreateFrame("Frame", nil, view.interruptMarkerClip)
     view.interruptMarkerFrame:SetSize(
         Config.castMarkerWidth,
         Config.castHeight
@@ -421,7 +558,7 @@ local function createPlateView(basePlate)
     setTextureColor(view.interruptMarker, Config.colors.interruptMarker)
 
     view.castText = view.castForeground:CreateFontString(nil, "OVERLAY")
-    view.castText:SetFont(Config.font, Config.castFontSize, "OUTLINE")
+    view.castText:SetFont(Config.castFont, Config.castFontSize, "OUTLINE")
     local castTextAnchor = FrameLayout:GetCastTextAnchor(
         Config.castTextLeftPadding,
         Config.castTextBottomPadding
@@ -437,7 +574,7 @@ local function createPlateView(basePlate)
     view.castText:SetJustifyH("LEFT")
 
     view.castTime = view.castForeground:CreateFontString(nil, "OVERLAY")
-    view.castTime:SetFont(Config.font, Config.castFontSize, "OUTLINE")
+    view.castTime:SetFont(Config.castFont, Config.castFontSize, "OUTLINE")
     view.castTime:SetPoint(
         "RIGHT",
         view.castForeground,
@@ -471,13 +608,17 @@ local function createPlateView(basePlate)
         view.castTimeBinding:SetZeroDurationText("")
         view.castTimeBinding:SetUpdateInterval(0.05)
         view.castTimeBinding:SetEnabled(true)
+
     end
 
-    local auraAnchor = AuraDisplay:GetAnchorLayout(Config.auraIconSpacing)
+    local debuffLayout = AuraDisplay:GetDebuffLayout(Config)
+    local auraAnchor = AuraDisplay:GetAnchorLayout(
+        debuffLayout.iconSpacing
+    )
 
     view.auraAnchor = auraAnchor
     view.auraLayer = createAuraLayer(
-        view.health,
+        view.healthForeground,
         auraAnchor,
         FrameLayout:GetAuraStrata(),
         FrameLayout:GetAuraLevel()
@@ -496,10 +637,10 @@ local function createPlateView(basePlate)
         arrowLayout.width
     )
     view.importantBuffLayer = createAuraLayer(
-        view.health,
+        view.healthForeground,
         view.importantBuffAnchor,
-        view.health:GetFrameStrata(),
-        view.health:GetFrameLevel() + 10
+        view.healthForeground:GetFrameStrata(),
+        view.healthForeground:GetFrameLevel() + 10
     )
 
     view.auras = {}
@@ -508,20 +649,24 @@ local function createPlateView(basePlate)
         for index = 1, Config.auraMaxCount do
             local aura = CreateFrame("Frame", nil, view.auraLayer)
 
-            aura:SetSize(Config.auraIconSize, Config.auraIconSize)
+            aura:SetSize(debuffLayout.iconSize, debuffLayout.iconSize)
             aura:SetPoint(
                 auraAnchor.itemPoint,
                 view.auraLayer,
                 auraAnchor.itemPoint,
                 (index - 1) *
-                    (Config.auraIconSize + Config.auraIconSpacing) *
+                    (debuffLayout.iconSize + debuffLayout.iconSpacing) *
                     auraAnchor.horizontalStep,
                 0
             )
             aura.icon = aura:CreateTexture(nil, "ARTWORK")
             aura.icon:SetAllPoints()
             aura.count = aura:CreateFontString(nil, "OVERLAY")
-            aura.count:SetFont(Config.font, Config.auraFontSize, "OUTLINE")
+            aura.count:SetFont(
+                Config.font,
+                debuffLayout.fontSize,
+                "OUTLINE"
+            )
             aura.count:SetPoint("BOTTOMRIGHT", aura, "BOTTOMRIGHT")
             aura:Hide()
             view.auras[index] = aura
@@ -531,8 +676,15 @@ local function createPlateView(basePlate)
     return view
 end
 
-local function initializeAuraButton(auraButton, border, iconSize, interaction)
+local function initializeAuraButton(
+    auraButton,
+    border,
+    iconSize,
+    interaction,
+    fontSize
+)
     iconSize = iconSize or Config.auraIconSize
+    fontSize = fontSize or Config.auraFontSize
     auraButton:SetSize(iconSize, iconSize)
     interaction = interaction or {
         enableMouse = AuraDisplay:ShouldEnableMouse(),
@@ -578,7 +730,7 @@ local function initializeAuraButton(auraButton, border, iconSize, interaction)
     auraButton.durationText = auraButton:CreateFontString(nil, "OVERLAY")
     auraButton.durationText:SetFont(
         Config.font,
-        Config.auraFontSize,
+        fontSize,
         "OUTLINE"
     )
     auraButton.durationText:SetPoint("CENTER", auraButton, "CENTER")
@@ -595,13 +747,25 @@ local function initializeAuraButton(auraButton, border, iconSize, interaction)
     auraButton.countText = auraButton:CreateFontString(nil, "OVERLAY")
     auraButton.countText:SetFont(
         Config.font,
-        Config.auraFontSize,
+        fontSize,
         "OUTLINE"
     )
     auraButton.countText:SetPoint("BOTTOMRIGHT", auraButton, "BOTTOMRIGHT")
     auraButton:SetApplicationCount(auraButton.countText)
     border = border or {}
     createBorder(auraButton, border.thickness, border.color)
+end
+
+local function initializeDebuffButton(auraButton)
+    local layout = AuraDisplay:GetDebuffLayout(Config)
+
+    initializeAuraButton(
+        auraButton,
+        nil,
+        layout.iconSize,
+        nil,
+        layout.fontSize
+    )
 end
 
 local function initializeImportantBuffButton(auraButton)
@@ -640,7 +804,7 @@ local function createNativeAuraContainer(
     for _, group in ipairs(groups) do
         local options = AuraDisplay:GetGroupOptions({
             iconSize = group.iconSize or Config.auraIconSize,
-            iconSpacing = Config.auraIconSpacing,
+            iconSpacing = group.iconSpacing or Config.auraIconSpacing,
             maxCount = Config.auraMaxCount,
         })
 
@@ -673,9 +837,10 @@ local function createNativeAuraContainers(view, unit)
         return
     end
 
+    local debuffLayout = AuraDisplay:GetDebuffLayout(Config)
     local groupOptions = {
-        iconSize = Config.auraIconSize,
-        iconSpacing = Config.auraIconSpacing,
+        iconSize = debuffLayout.iconSize,
+        iconSpacing = debuffLayout.iconSpacing,
         maxCount = Config.auraMaxCount,
     }
     local debuffOptions = AuraDisplay:GetGroupOptions(groupOptions)
@@ -688,16 +853,24 @@ local function createNativeAuraContainers(view, unit)
             key = "playerDebuffs",
             filter = AuraDisplay:GetFilter(),
             excludeSpellIDs = true,
+            iconSize = debuffLayout.iconSize,
+            iconSpacing = debuffLayout.iconSpacing,
+            initializeFrame = initializeDebuffButton,
         }},
         debuffOptions.layout.maximumLineSize
     )
 
-    local importantBuffGroups = {}
     local importantBuffIconSize =
         AuraDisplay:GetImportantBuffIconSize(Config.auraIconSize)
+    local rightAuraGroups = {{
+        key = "crowdControl",
+        filter = AuraDisplay:GetCrowdControlFilter(),
+        iconSize = importantBuffIconSize,
+        initializeFrame = initializeImportantBuffButton,
+    }}
 
     for index, filter in ipairs(AuraDisplay:GetImportantBuffFilters()) do
-        importantBuffGroups[index] = {
+        rightAuraGroups[index + 1] = {
             key = "importantBuff" .. index,
             filter = filter,
             iconSize = importantBuffIconSize,
@@ -715,8 +888,8 @@ local function createNativeAuraContainers(view, unit)
         view.importantBuffLayer,
         view.importantBuffAnchor,
         unit,
-        importantBuffGroups,
-        AuraDisplay:GetImportantBuffMaximumLineSize(importantBuffOptions)
+        rightAuraGroups,
+        AuraDisplay:GetRightAuraMaximumLineSize(importantBuffOptions)
     )
 end
 
@@ -1019,13 +1192,22 @@ function Runtime:UpdateHealth(unit)
     )
 
     setStatusBarColor(view.health, Config.colors[colorKey])
-    view.name:SetText(DisplayText:ShortenName(UnitName(unit)))
+    setNameText(view, DisplayText:ShortenName(UnitName(unit)))
 
     self:UpdateHealthValues(
         unit,
         view,
         health,
         maximum
+    )
+    view.healthMarker:SetAlpha(UnitHealthPercent(
+        unit,
+        true,
+        view.healthMarkerAlphaCurve
+    ))
+    self:SetHealthText(
+        view.healthText,
+        HealthFormat:FormatHealth(health, AbbreviateNumbers)
     )
 
     if issecretvalue and
@@ -1036,13 +1218,15 @@ function Runtime:UpdateHealth(unit)
             CurveConstants.ScaleTo100
         )
 
-        view.healthText:SetText(HealthFormat:FormatRestricted(
-            health,
-            percentage,
-            AbbreviateNumbers
-        ))
+        self:SetHealthText(
+            view.healthPercentage,
+            HealthFormat:FormatRestrictedPercentage(percentage)
+        )
     else
-        view.healthText:SetText(HealthFormat:Format(health, maximum))
+        self:SetHealthText(
+            view.healthPercentage,
+            HealthFormat:FormatPercentage(health, maximum)
+        )
     end
 end
 
@@ -1174,55 +1358,29 @@ function Runtime:SetBlizzardFrameHidden(view, shouldHide)
     end
 end
 
-function Runtime:AcquireLightweightView(createView)
-    return table.remove(self.lightweightPool) or createView()
-end
+function Runtime:UpdateAbsorbValues(unit, view)
+    local calculator = view.absorbCalculator
 
-function Runtime:ReleaseLightweightView(view)
-    view:Hide()
-    view:SetParent(nil)
-    view.unit = nil
-    view.blizzardUnitFrame = nil
-    view.blizzardAlpha = nil
-    view.blizzardAurasAlpha = nil
-
-    self.lightweightPool[#self.lightweightPool + 1] = view
-end
-
-function Runtime:UpdateHealthValues(_, view, health, maximum)
-    view.health:SetMinMaxValues(0, maximum)
-    view.health:SetValue(health)
-end
-
-function Runtime:UpdateLightweightHealth(unit)
-    local view = self.lightweightPlates[unit]
-
-    if not view then
+    if not calculator or not UnitGetDetailedHealPrediction then
         return
     end
 
-    self:UpdateHealthValues(
-        unit,
-        view,
-        UnitHealth(unit),
-        UnitHealthMax(unit)
+    UnitGetDetailedHealPrediction(unit, nil, calculator)
+    view.absorbBar:SetMinMaxValues(0, calculator:GetMaximumHealth())
+    view.absorbBar:SetValue(
+        calculator:GetDamageAbsorbs(),
+        view.absorbInterpolation
     )
 end
 
-function Runtime:ShowLightweightPlate(unit, basePlate)
-    local view = self:AcquireLightweightView(createLightweightView)
-
-    attachLightweightView(view, basePlate, unit)
-    self:SetBlizzardFrameHidden(view, true)
-    self.lightweightPlates[unit] = view
-    NameplateStacking:ApplyBounds(basePlate, view)
-    self:UpdateLightweightHealth(unit)
-    view:Show()
-    self:RefreshUpdateDriver()
+function Runtime:UpdateHealthValues(unit, view, health, maximum)
+    view.health:SetMinMaxValues(0, maximum)
+    view.health:SetValue(health)
+    self:UpdateAbsorbValues(unit, view)
 end
 
 function Runtime:AddPlate(unit)
-    if self.activePlates[unit] or self.lightweightPlates[unit] then
+    if self.activePlates[unit] then
         self.lastAddResult = "duplicate:" .. tostring(unit)
         return
     end
@@ -1259,8 +1417,7 @@ function Runtime:AddPlate(unit)
         isLieutenant = isLieutenant,
         playerLevel = UnitLevel("player"),
     }) then
-        self:ShowLightweightPlate(unit, basePlate)
-        self.lastAddResult = "lightweight-non-elite:" .. tostring(unit)
+        self.lastAddResult = "filtered:" .. tostring(unit)
         return
     end
 
@@ -1320,6 +1477,59 @@ function Runtime:GetDebugState()
     }
 end
 
+function Runtime:DebugForceTargetAbsorb()
+    for unit, view in pairs(self.activePlates) do
+        local isTarget = DisplayText:SafeValue(
+            UnitIsUnit(unit, "target"),
+            false
+        )
+
+        if isTarget then
+            view.absorbBar:SetMinMaxValues(0, 1)
+            view.absorbBar:SetValue(1)
+            return true
+        end
+    end
+
+    return false
+end
+
+function Runtime:ApplyTargetHealthHeight(view, isTarget)
+    local height = FrameLayout:GetTargetHealthHeight(
+        Config.healthHeight,
+        Config.targetHealthScale,
+        isTarget
+    )
+
+    if view.healthSectionHeight == height then
+        return
+    end
+
+    local healthHeight = height - Config.healthInset * 2
+    local absorbHeight = height - Config.absorbInset * 2
+    local textHeight = height - Config.contentPadding * 2
+    local regularArrowLayout = TargetIndicator:GetArrowLayout(
+        Config.healthHeight,
+        Config.targetArrowScale,
+        Config.targetArrowX,
+        Config.targetArrowWidthScale,
+        Config.targetArrowHeightScale
+    )
+    local arrowHeight = isTarget and height or regularArrowLayout.height
+
+    view:SetHeight(height + Config.castHeight)
+    view.emptyBar:SetHeight(height)
+    view.health:SetHeight(healthHeight)
+    view.absorbBar:SetHeight(absorbHeight)
+    view.healthForeground:SetHeight(height)
+    view.healthMarker:SetHeight(healthHeight)
+    view.healthText:SetHeight(textHeight)
+    view.healthPercentage:SetHeight(textHeight)
+    view.targetIndicator.leftArrow:SetHeight(arrowHeight)
+    view.targetIndicator.rightArrow:SetHeight(arrowHeight)
+    view.healthSectionHeight = height
+end
+
 function Runtime:UpdateSelectionIndicators()
     for plateUnit, view in pairs(self.activePlates) do
         local isTarget = DisplayText:SafeValue(
@@ -1336,6 +1546,7 @@ function Runtime:UpdateSelectionIndicators()
         )
         local focusStyle = Appearance:GetFocusStyle(isFocus, isTarget)
 
+        self:ApplyTargetHealthHeight(view, isTarget)
         view:SetAlpha(focusStyle.alpha)
         view.focusOverlay:SetAlpha(focusStyle.overlayAlpha)
         view.focusBorder:SetShown(
@@ -1346,6 +1557,9 @@ function Runtime:UpdateSelectionIndicators()
         )
         view.targetIndicator:SetShown(
             TargetIndicator:ShouldShow(isTarget)
+        )
+        view.healthMarker:SetShown(
+            FrameLayout:ShouldShowHealthMarker(isTarget)
         )
         view.hoverIndicator:SetShown(
             TargetIndicator:ShouldShowHover(isMouseover, isTarget)
@@ -1371,16 +1585,6 @@ function Runtime:UpdateHoverIndicators()
 end
 
 function Runtime:RemovePlate(unit)
-    local lightweightView = self.lightweightPlates[unit]
-
-    if lightweightView then
-        self:SetBlizzardFrameHidden(lightweightView, false)
-        self.lightweightPlates[unit] = nil
-        self:ReleaseLightweightView(lightweightView)
-        self:RefreshUpdateDriver()
-        return
-    end
-
     local view = self.activePlates[unit]
 
     if not view then
@@ -1417,17 +1621,11 @@ function Runtime:ReleaseAllPlates()
         units[#units + 1] = unit
     end
 
-
-    for unit in pairs(self.lightweightPlates) do
-        units[#units + 1] = unit
-    end
-
     for _, unit in ipairs(units) do
         self:RemovePlate(unit)
     end
 
     self.activeCasts = {}
-    self.lightweightPlates = {}
 end
 
 function Runtime:ReleaseForLoadingScreen(collect)
@@ -1489,13 +1687,6 @@ function Runtime:OnUpdate(elapsed)
             end
         end
 
-
-        for _, view in pairs(self.lightweightPlates) do
-            if view.blizzardUnitFrame and
-                view.blizzardUnitFrame:GetAlpha() ~= 0 then
-                view.blizzardUnitFrame:SetAlpha(0)
-            end
-        end
     end
 end
 
@@ -1519,8 +1710,8 @@ function Runtime:OnEvent(event, unit, _, spellID)
         self:AddPlate(unit)
     elseif event == "NAME_PLATE_UNIT_REMOVED" then
         self:RemovePlate(unit)
-    elseif event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH" then
-        self:UpdateLightweightHealth(unit)
+    elseif event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH" or
+        event == "UNIT_ABSORB_AMOUNT_CHANGED" then
         self:UpdateHealth(unit)
     elseif event == "UNIT_FACTION" or
         event == "UNIT_THREAT_SITUATION_UPDATE" then
@@ -1598,6 +1789,7 @@ function Runtime:Enable()
         "SPELLS_CHANGED",
         "UNIT_HEALTH",
         "UNIT_MAXHEALTH",
+        "UNIT_ABSORB_AMOUNT_CHANGED",
         "UNIT_FACTION",
         "UNIT_AURA",
         "UNIT_THREAT_SITUATION_UPDATE",

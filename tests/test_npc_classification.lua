@@ -19,7 +19,7 @@ Describe("Jundies NPC classification", function()
         ExpectEqual(result, "caster")
     end)
 
-    It("shows only elite or boss-like NPC classifications", function()
+    It("shows regular nameplates for every NPC classification", function()
         -- Given
         local classifications = {
             normal = {classification = "normal"},
@@ -62,8 +62,8 @@ Describe("Jundies NPC classification", function()
         )
 
         -- Then
-        ExpectEqual(normal, false)
-        ExpectEqual(rare, false)
+        ExpectEqual(normal, true)
+        ExpectEqual(rare, true)
         ExpectEqual(elite, true)
         ExpectEqual(rareelite, true)
         ExpectEqual(worldboss, true)

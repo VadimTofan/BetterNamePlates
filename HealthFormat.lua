@@ -2,19 +2,11 @@ local _, namespace = ...
 
 local HealthFormat = {}
 
-local function abbreviate(value)
-    if value >= 1000000 then
-        return string.format("%.1fM", value / 1000000)
-    end
-
-    if value >= 1000 then
-        return string.format("%.1fK", value / 1000)
-    end
-
-    return tostring(value)
+function HealthFormat:FormatHealth(health, formatter)
+    return formatter(health)
 end
 
-function HealthFormat:Format(health, maximum, secretCheck)
+function HealthFormat:FormatPercentage(health, maximum, secretCheck)
     secretCheck = secretCheck or issecretvalue
 
     if secretCheck and (secretCheck(health) or secretCheck(maximum)) then
@@ -23,19 +15,11 @@ function HealthFormat:Format(health, maximum, secretCheck)
 
     local percentage = maximum > 0 and health / maximum * 100 or 0
 
-    return string.format(
-        "%s %.1f%%",
-        abbreviate(health),
-        percentage
-    )
+    return string.format("%.1f%%", percentage)
 end
 
-function HealthFormat:FormatRestricted(health, percentage, abbreviator)
-    return string.format(
-        "%s %.1f%%",
-        abbreviator(health),
-        percentage
-    )
+function HealthFormat:FormatRestrictedPercentage(percentage)
+    return string.format("%.1f%%", percentage)
 end
 
 function HealthFormat:GetRestrictedPercentage(

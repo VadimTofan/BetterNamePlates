@@ -20,6 +20,19 @@ Describe("Restricted display text", function()
         ExpectEqual(result, name)
     end)
 
+    It("keeps names within the configured length unchanged", function()
+        -- Given
+        local name = "Imp"
+
+        -- When
+        local result = displayText:ShortenName(name, function()
+            return false
+        end)
+
+        -- Then
+        ExpectEqual(result, "Imp")
+    end)
+
     It("shortens ordinary names to the configured length", function()
         -- Given
         local name = "Ordinary Name"

@@ -40,8 +40,19 @@ if CreateFrame then
 
     _G["SLASH_" .. Identity.slashKey .. "1"] = Identity.slashCommand
     SlashCmdList[Identity.slashKey] = function(message)
+        if message == "absorbtest" then
+            print(
+                Identity.name .. ": absorb test=" ..
+                tostring(namespace.Runtime:DebugForceTargetAbsorb())
+            )
+            return
+        end
+
         if message ~= "debug" then
-            print(Identity.name .. ": use " .. Identity.slashCommand .. " debug")
+            print(
+                Identity.name .. ": use " .. Identity.slashCommand ..
+                " debug or " .. Identity.slashCommand .. " absorbtest"
+            )
             return
         end
 

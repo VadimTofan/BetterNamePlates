@@ -2,63 +2,61 @@ Describe("Profile health formatting", function()
     local namespace = {}
     local healthFormat = LoadAddonFile("HealthFormat.lua", namespace)
 
-    It("formats millions with one decimal and percent", function()
+    It("delegates NPC health to Blizzard's abbreviator", function()
         -- Given
-        local health = 2400000
-        local maximum = 2400000
-
-        -- When
-        local text = healthFormat:Format(health, maximum)
-
-        -- Then
-        ExpectEqual(text, "2.4M 100.0%")
-    end)
-
-    It("formats thousands without unnecessary precision", function()
-        -- Given
-        local health = 87500
-        local maximum = 100000
-
-        -- When
-        local text = healthFormat:Format(health, maximum)
-
-        -- Then
-        ExpectEqual(text, "87.5K 87.5%")
-    end)
-
-    It("does not perform arithmetic on secret health values", function()
-        -- Given
-        local health = 87500
-        local maximum = 100000
-        local function isSecret(value)
-            return value == health
-        end
-
-        -- When
-        local text = healthFormat:Format(health, maximum, isSecret)
-
-        -- Then
-        ExpectEqual(text, nil)
-    end)
-
-    It("formats restricted health through Blizzard-safe values", function()
-        -- Given
-        local health = 2400000
-        local percentage = 100
+        local health = 6500000
         local function abbreviate(value)
             ExpectEqual(value, health)
-            return "2.4M"
+            return "6.5M"
         end
 
         -- When
-        local text = healthFormat:FormatRestricted(
+        local displayedHealth = healthFormat:FormatHealth(
             health,
-            percentage,
             abbreviate
         )
 
         -- Then
-        ExpectEqual(text, "2.4M 100.0%")
+        ExpectEqual(displayedHealth, "6.5M")
+    end)
+
+    It("formats health percentages separately", function()
+        -- Given
+        local health = 87500
+        local maximum = 100000
+
+        -- When
+        local text = healthFormat:FormatPercentage(health, maximum)
+
+        -- Then
+        ExpectEqual(text, "87.5%")
+    end)
+
+    It("delegates protected health without inspecting it", function()
+        -- Given
+        local health = 87500
+        local maximum = 100000
+        local function abbreviate(value)
+            ExpectEqual(value, health)
+            return "87.5K"
+        end
+
+        -- When
+        local text = healthFormat:FormatHealth(health, abbreviate)
+
+        -- Then
+        ExpectEqual(text, "87.5K")
+    end)
+
+    It("formats restricted percentages separately", function()
+        -- Given
+        local percentage = 100
+
+        -- When
+        local text = healthFormat:FormatRestrictedPercentage(percentage)
+
+        -- Then
+        ExpectEqual(text, "100.0%")
     end)
 
     It("requests restricted percentages with the scale-to-100 curve", function()

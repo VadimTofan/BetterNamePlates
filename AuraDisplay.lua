@@ -7,7 +7,7 @@ local IMPORTANT_BUFF_BORDER = {
     color = {1, 0, 0, 1},
 }
 local IMPORTANT_BUFF_LEFT_ADJUSTMENT = 10
-local IMPORTANT_BUFF_ICON_SCALE = 1.25
+local IMPORTANT_BUFF_ICON_SCALE = 1
 
 local IMPORTANT_BUFF_FILTERS = {
     "HELPFUL|BIG_DEFENSIVE",
@@ -25,7 +25,11 @@ local EXCLUDED_SPELL_IDS = {
 }
 
 function AuraDisplay:GetFilter()
-    return "HARMFUL|PLAYER"
+    return "HARMFUL|PLAYER|!CROWD_CONTROL"
+end
+
+function AuraDisplay:GetCrowdControlFilter()
+    return "HARMFUL|CROWD_CONTROL"
 end
 
 function AuraDisplay:GetGroupOptions(config)
@@ -45,6 +49,14 @@ function AuraDisplay:GetGroupOptions(config)
             elementHeight = config.iconSize,
             maximumLineSize = config.maxCount * elementSize,
         },
+    }
+end
+
+function AuraDisplay:GetDebuffLayout(config)
+    return {
+        iconSize = config.auraIconSize * config.debuffScale,
+        iconSpacing = config.auraIconSpacing * config.debuffScale,
+        fontSize = config.auraFontSize * config.debuffScale,
     }
 end
 
@@ -93,8 +105,8 @@ function AuraDisplay:GetImportantBuffInteraction()
     }
 end
 
-function AuraDisplay:GetImportantBuffMaximumLineSize(config)
-    local filterCount = #IMPORTANT_BUFF_FILTERS
+function AuraDisplay:GetRightAuraMaximumLineSize(config)
+    local filterCount = #IMPORTANT_BUFF_FILTERS + 1
     local elementSize = config.iconSize + config.iconSpacing
 
     return config.maxCount * filterCount * elementSize

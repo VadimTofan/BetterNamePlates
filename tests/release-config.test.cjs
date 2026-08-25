@@ -27,6 +27,10 @@ assert.ok(
   "release packages must exclude the source profile",
 );
 assert.ok(
+  packageMetadata.includes("  - icon-readme.png"),
+  "release packages must exclude the full-size README icon",
+);
+assert.ok(
   packageMetadata.includes("  - package.json"),
   "release packages must exclude Node metadata",
 );
@@ -54,6 +58,16 @@ const runtime = readRepositoryFile("Runtime.lua");
 const interrupts = readRepositoryFile("Interrupts.lua");
 const config = readRepositoryFile("Config.lua");
 const auraDisplay = readRepositoryFile("AuraDisplay.lua");
+const readme = readRepositoryFile("README.md");
+
+assert.ok(
+  fs.existsSync("icon-readme.png"),
+  "the repository must retain a full-size README icon",
+);
+assert.ok(
+  readme.includes("![BetterNamePlates icon](icon-readme.png)"),
+  "the README must display the full-size repository icon",
+);
 const healthFontUses = runtime.match(/Config\.healthFont(?!Size)/g) ?? [];
 
 assert.equal(

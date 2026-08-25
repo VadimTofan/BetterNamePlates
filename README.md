@@ -1,6 +1,6 @@
 # BetterNamePlates
 
-![BetterNamePlates icon](icon.png)
+![BetterNamePlates icon](icon-readme.png)
 
 BetterNamePlates is a lightweight, opinionated nameplate addon for World of
 Warcraft Retail. It recreates the combat clarity of a focused Plater profile

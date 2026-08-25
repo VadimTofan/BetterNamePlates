@@ -18,7 +18,6 @@ local TargetIndicator = namespace.TargetIndicator
 
 local Runtime = {
     activePlates = {},
-    activeCasts = {},
     friendlyPlates = {},
 }
 
@@ -30,15 +29,6 @@ function Runtime:AdvanceRefreshClock(current, elapsed, interval)
     end
 
     return false, accumulated
-end
-
-function Runtime:SetCastActive(unit, view, isActive)
-    if isActive then
-        self.activeCasts[unit] = view
-        return
-    end
-
-    self.activeCasts[unit] = nil
 end
 
 function Runtime:RefreshUpdateDriver()
@@ -634,9 +624,7 @@ local function createPlateView(basePlate)
     end
 
     local debuffLayout = AuraDisplay:GetDebuffLayout(Config)
-    local auraAnchor = AuraDisplay:GetAnchorLayout(
-        debuffLayout.iconSpacing
-    )
+    local auraAnchor = AuraDisplay:GetAnchorLayout()
 
     view.auraAnchor = auraAnchor
     view.auraLayer = createAuraLayer(
@@ -764,12 +752,14 @@ local function initializeAuraButton(
     end
 
     local textColor = textPresentation.color or Config.colors.auraTimer
+    local textFont = textPresentation.font or Config.font
+    local textFontFlags = textPresentation.fontFlags or "OUTLINE"
 
     auraButton.durationText = textParent:CreateFontString(nil, "OVERLAY")
     auraButton.durationText:SetFont(
-        Config.font,
+        textFont,
         fontSize,
-        "OUTLINE"
+        textFontFlags
     )
     auraButton.durationText:SetPoint("CENTER", auraButton, "CENTER")
     auraButton.durationText:SetTextColor(
@@ -796,6 +786,11 @@ end
 
 local function initializeDebuffButton(auraButton)
     local layout = AuraDisplay:GetDebuffLayout(Config)
+    local textPresentation =
+        AuraDisplay:GetBoldTimerPresentation(Config)
+
+    textPresentation.aboveSwipe = true
+    textPresentation.color = Config.colors.debuffTimer
 
     initializeAuraButton(
         auraButton,
@@ -803,10 +798,7 @@ local function initializeDebuffButton(auraButton)
         layout.iconSize,
         nil,
         layout.fontSize,
-        {
-            aboveSwipe = true,
-            color = Config.colors.debuffTimer,
-        }
+        textPresentation
     )
 end
 
@@ -833,7 +825,9 @@ local function initializePurgeableBuffButton(auraButton)
         auraButton,
         AuraDisplay:GetPurgeableBuffBorder(),
         AuraDisplay:GetImportantBuffIconSize(Config.auraIconSize),
-        AuraDisplay:GetImportantBuffInteraction()
+        AuraDisplay:GetImportantBuffInteraction(),
+        nil,
+        AuraDisplay:GetBoldTimerPresentation(Config)
     )
 end
 
@@ -1309,7 +1303,6 @@ function Runtime:UpdateCast(unit, event)
     end
 
     if not name then
-        self:SetCastActive(unit, view, false)
         view.cast:Hide()
         view.castIconFrame:Hide()
         view.interruptMarkerFrame:Hide()
@@ -1330,7 +1323,6 @@ function Runtime:UpdateCast(unit, event)
     )
 
     if not view.castDuration then
-        self:SetCastActive(unit, view, false)
         view.cast:Hide()
         return
     end
@@ -1381,7 +1373,6 @@ function Runtime:UpdateCast(unit, event)
         view.castDuration,
         view.interruptCooldown
     )
-    self:SetCastActive(unit, view, true)
     view.cast:Show()
     self:UpdateHealth(unit)
 end
@@ -1704,7 +1695,6 @@ function Runtime:RemovePlate(unit)
     end
 
     view:Hide()
-    self:SetCastActive(unit, view, false)
 
     if view.auraContainer then
         view.auraContainer:SetEnabled(false)
@@ -1741,7 +1731,6 @@ function Runtime:ReleaseAllPlates()
         self:RemovePlate(unit)
     end
 
-    self.activeCasts = {}
 end
 
 function Runtime:ReleaseForLoadingScreen(collect)
@@ -1761,29 +1750,6 @@ function Runtime:OnUpdate(elapsed)
 
     if shouldRefreshHover then
         self:UpdateHoverIndicators()
-    end
-
-    if next(self.activeCasts) then
-        local shouldRefreshCasts
-
-        shouldRefreshCasts, self.castRefreshElapsed =
-            self:AdvanceRefreshClock(
-                self.castRefreshElapsed,
-                elapsed,
-                Config.castRefreshInterval
-            )
-
-        if shouldRefreshCasts then
-            for _, view in pairs(self.activeCasts) do
-                updateCastVisual(
-                    view,
-                    view.castDuration,
-                    view.interruptCooldown
-                )
-            end
-        end
-    else
-        self.castRefreshElapsed = nil
     end
 
 end
@@ -1931,7 +1897,6 @@ function Runtime:Disable()
     self.interruptMarkerRefreshPending = nil
     self.stackingPending = nil
     self.hoverRefreshElapsed = nil
-    self.castRefreshElapsed = nil
     self.castTimeFormatter = nil
     self.auraTimeFormatter = nil
     self:ReleaseAllPlates()

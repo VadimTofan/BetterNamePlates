@@ -22,7 +22,6 @@ local Config = {
         "Interface\\AddOns\\BetterNamePlates\\media\\focus_overlay",
     castHeight = 11.2,
     castGap = 0,
-    castRefreshInterval = 0.05,
     castIconSize = 11.2,
     castIconGap = 1,
     castMarkerWidth = 2,

@@ -91,13 +91,13 @@ function AuraDisplay:GetDebuffLayout(config)
     }
 end
 
-function AuraDisplay:GetAnchorLayout(iconSpacing)
+function AuraDisplay:GetAnchorLayout()
     return {
         layerPoint = "BOTTOMRIGHT",
         platePoint = "TOPRIGHT",
         itemPoint = "BOTTOMRIGHT",
         x = 0,
-        y = iconSpacing,
+        y = 0,
         horizontalStep = -1,
         flowDirection = "Left",
     }
@@ -164,6 +164,13 @@ function AuraDisplay:GetDurationBreakpoint()
         threshold = 0,
         step = 1,
         format = "%d",
+    }
+end
+
+function AuraDisplay:GetBoldTimerPresentation(config)
+    return {
+        font = config.nameFont,
+        fontFlags = config.expresswayFontFlags,
     }
 end
 

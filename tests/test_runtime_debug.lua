@@ -313,9 +313,6 @@ Describe("Runtime diagnostics", function()
             nameplate1 = {},
             nameplate2 = {},
         }
-        runtime.activeCasts = {
-            nameplate1 = {},
-        }
         runtime.RemovePlate = function(self, unit)
             removed[unit] = true
             self.activePlates[unit] = nil
@@ -330,11 +327,10 @@ Describe("Runtime diagnostics", function()
         ExpectEqual(removed.nameplate1, true)
         ExpectEqual(removed.nameplate2, true)
         ExpectEqual(next(runtime.activePlates), nil)
-        ExpectEqual(next(runtime.activeCasts), nil)
         ExpectEqual(collected, true)
     end)
 
-    It("tracks only nameplates with active casts", function()
+    It("does not track casts for recurring Lua updates", function()
         -- Given
         local namespace = {
             Config = {},
@@ -343,19 +339,13 @@ Describe("Runtime diagnostics", function()
             Rules = {},
         }
         local runtime = LoadAddonFile("Runtime.lua", namespace)
-        local castingView = {}
-        local idleView = {}
-
         -- When
-        runtime:SetCastActive("nameplate1", castingView, true)
-        runtime:SetCastActive("nameplate2", idleView, false)
-        local activeBeforeStop = runtime.activeCasts.nameplate1
-        runtime:SetCastActive("nameplate1", castingView, false)
+        local activeCasts = runtime.activeCasts
+        local setCastActive = runtime.SetCastActive
 
         -- Then
-        ExpectEqual(activeBeforeStop, castingView)
-        ExpectEqual(runtime.activeCasts.nameplate1, nil)
-        ExpectEqual(runtime.activeCasts.nameplate2, nil)
+        ExpectEqual(activeCasts, nil)
+        ExpectEqual(setCastActive, nil)
     end)
 
     It("runs the update driver only while nameplates are active", function()

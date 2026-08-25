@@ -68,12 +68,12 @@ Describe("Player debuff display", function()
         local auraDisplay = LoadAddonFile("AuraDisplay.lua", namespace)
 
         -- When
-        local anchor = auraDisplay:GetAnchorLayout(2)
+        local anchor = auraDisplay:GetAnchorLayout()
 
         -- Then
         ExpectEqual(anchor.layerPoint, "BOTTOMRIGHT")
         ExpectEqual(anchor.platePoint, "TOPRIGHT")
-        ExpectEqual(anchor.y, 2)
+        ExpectEqual(anchor.y, 0)
         ExpectEqual(anchor.itemPoint, "BOTTOMRIGHT")
         ExpectEqual(anchor.horizontalStep, -1)
         ExpectEqual(anchor.flowDirection, "Left")
@@ -224,6 +224,23 @@ Describe("Player debuff display", function()
         ExpectEqual(breakpoint.threshold, 0)
         ExpectEqual(breakpoint.step, 1)
         ExpectEqual(breakpoint.format, "%d")
+    end)
+
+    It("uses the Expressway presentation for bold aura timers", function()
+        -- Given
+        local namespace = {}
+        local auraDisplay = LoadAddonFile("AuraDisplay.lua", namespace)
+        local config = {
+            expresswayFontFlags = "OUTLINE",
+            nameFont = "Expressway.ttf",
+        }
+
+        -- When
+        local presentation = auraDisplay:GetBoldTimerPresentation(config)
+
+        -- Then
+        ExpectEqual(presentation.font, "Expressway.ttf")
+        ExpectEqual(presentation.fontFlags, "OUTLINE")
     end)
 
     It("reverses the debuff cooldown swipe", function()

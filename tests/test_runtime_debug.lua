@@ -1,4 +1,147 @@
 Describe("Runtime diagnostics", function()
+    It("reuses the custom view cached on a Blizzard base plate", function()
+        -- Given
+        local namespace = {
+            Config = {},
+            CombatState = {},
+            FrameLayout = {},
+            Rules = {},
+        }
+        local runtime = LoadAddonFile("Runtime.lua", namespace)
+        local basePlate = {}
+        local createCount = 0
+        local expectedView = {}
+        local function createView()
+            createCount = createCount + 1
+            return expectedView
+        end
+
+        -- When
+        local firstView, firstCreated = runtime:AcquirePlateView(
+            basePlate,
+            createView
+        )
+        local secondView, secondCreated = runtime:AcquirePlateView(
+            basePlate,
+            createView
+        )
+
+        -- Then
+        ExpectEqual(firstView, expectedView)
+        ExpectEqual(secondView, expectedView)
+        ExpectEqual(firstCreated, true)
+        ExpectEqual(secondCreated, false)
+        ExpectEqual(createCount, 1)
+    end)
+
+    It("clears transient state before reusing a custom view", function()
+        -- Given
+        local namespace = {
+            Config = {},
+            CombatState = {},
+            FrameLayout = {},
+            Rules = {},
+        }
+        local runtime = LoadAddonFile("Runtime.lua", namespace)
+        local hidden = {}
+        local view = {
+            castDuration = {},
+            interruptCooldown = {},
+            isChannel = true,
+            markerInterruptible = true,
+            cast = {Hide = function() hidden.cast = true end},
+            castIconFrame = {Hide = function() hidden.icon = true end},
+            interruptMarkerFrame = {
+                Hide = function() hidden.marker = true end,
+            },
+            auraLayer = {Show = function() hidden.auras = false end},
+            importantBuffLayer = {
+                Show = function() hidden.buffs = false end,
+            },
+            SetParent = function() end,
+            Show = function() hidden.view = false end,
+        }
+        local basePlate = {UnitFrame = {}}
+
+        -- When
+        runtime:PreparePlateView(view, "nameplate2", basePlate)
+
+        -- Then
+        ExpectEqual(view.unit, "nameplate2")
+        ExpectEqual(view.basePlate, basePlate)
+        ExpectEqual(view.blizzardUnitFrame, basePlate.UnitFrame)
+        ExpectEqual(view.castDuration, nil)
+        ExpectEqual(view.interruptCooldown, nil)
+        ExpectEqual(view.isChannel, nil)
+        ExpectEqual(view.markerInterruptible, nil)
+        ExpectEqual(hidden.cast, true)
+        ExpectEqual(hidden.icon, true)
+        ExpectEqual(hidden.marker, true)
+    end)
+
+    It("builds immutable NPC identity only once per admission", function()
+        -- Given
+        local namespace = {
+            Config = {},
+            CombatState = {},
+            FrameLayout = {},
+            Rules = {},
+        }
+        local runtime = LoadAddonFile("Runtime.lua", namespace)
+        local view = {}
+        local buildCount = 0
+        local function buildIdentity()
+            buildCount = buildCount + 1
+            return {name = "Captain", profileColorKey = "caster"}
+        end
+
+        -- When
+        local first = runtime:GetPlateIdentity(view, buildIdentity)
+        local second = runtime:GetPlateIdentity(view, buildIdentity)
+
+        -- Then
+        ExpectEqual(first, second)
+        ExpectEqual(first.name, "Captain")
+        ExpectEqual(first.profileColorKey, "caster")
+        ExpectEqual(buildCount, 1)
+    end)
+
+    It("narrows aura and player spellcast event registration", function()
+        -- Given
+        local namespace = {
+            Config = {},
+            CombatState = {},
+            FrameLayout = {},
+            Rules = {},
+        }
+        local runtime = LoadAddonFile("Runtime.lua", namespace)
+        local function contains(values, expected)
+            for _, value in ipairs(values) do
+                if value == expected then
+                    return true
+                end
+            end
+
+            return false
+        end
+
+        -- When
+        local nativePlan = runtime:GetEventRegistrationPlan(true)
+        local fallbackPlan = runtime:GetEventRegistrationPlan(false)
+
+        -- Then
+        ExpectEqual(contains(nativePlan.events, "UNIT_AURA"), false)
+        ExpectEqual(contains(fallbackPlan.events, "UNIT_AURA"), true)
+        ExpectEqual(
+            contains(nativePlan.events, "UNIT_SPELLCAST_SUCCEEDED"),
+            false
+        )
+        ExpectEqual(
+            nativePlan.playerEvents.UNIT_SPELLCAST_SUCCEEDED,
+            true
+        )
+    end)
+
     It("resizes only the targeted health section", function()
         -- Given
         local healthSectionHeight
@@ -218,7 +361,7 @@ Describe("Runtime diagnostics", function()
         ExpectEqual(receivedInterpolation, interpolation)
     end)
 
-    It("refreshes health when an absorb amount changes", function()
+    It("refreshes only absorbs when an absorb amount changes", function()
         -- Given
         local namespace = {
             Config = {},
@@ -241,9 +384,12 @@ Describe("Runtime diagnostics", function()
         }
         local runtime = LoadAddonFile("Runtime.lua", namespace)
         local refreshedUnit
+        local expectedView = {}
 
-        runtime.UpdateHealth = function(_, unit)
+        runtime.activePlates.nameplate2 = expectedView
+        runtime.UpdateAbsorbValues = function(_, unit, view)
             refreshedUnit = unit
+            ExpectEqual(view, expectedView)
         end
 
         -- When
@@ -346,6 +492,27 @@ Describe("Runtime diagnostics", function()
         -- Then
         ExpectEqual(activeCasts, nil)
         ExpectEqual(setCastActive, nil)
+    end)
+
+    It("tracks casting plates only for event-driven refreshes", function()
+        -- Given
+        local namespace = {
+            Config = {},
+            CombatState = {},
+            FrameLayout = {},
+            Rules = {},
+        }
+        local runtime = LoadAddonFile("Runtime.lua", namespace)
+        local castingView = {}
+
+        -- When
+        runtime:SetCastingPlate("nameplate1", castingView, true)
+        local activeView = runtime.castingPlates.nameplate1
+        runtime:SetCastingPlate("nameplate1", castingView, false)
+
+        -- Then
+        ExpectEqual(activeView, castingView)
+        ExpectEqual(runtime.castingPlates.nameplate1, nil)
     end)
 
     It("runs the update driver only while nameplates are active", function()

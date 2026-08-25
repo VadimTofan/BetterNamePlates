@@ -18,6 +18,7 @@ local TargetIndicator = namespace.TargetIndicator
 
 local Runtime = {
     activePlates = {},
+    castingPlates = {},
     friendlyPlates = {},
 }
 
@@ -685,6 +686,55 @@ local function createPlateView(basePlate)
     return view
 end
 
+function Runtime:SetCastingPlate(unit, view, isCasting)
+    if isCasting then
+        self.castingPlates[unit] = view
+        return
+    end
+
+    self.castingPlates[unit] = nil
+end
+
+function Runtime:AcquirePlateView(basePlate, factory)
+    local view = basePlate.BetterNamePlatesView
+
+    if view then
+        return view, false
+    end
+
+    view = factory(basePlate)
+    basePlate.BetterNamePlatesView = view
+
+    return view, true
+end
+
+function Runtime:PreparePlateView(view, unit, basePlate)
+    view:SetParent(basePlate)
+    view:Show()
+    view.auraLayer:Show()
+    view.importantBuffLayer:Show()
+    view.unit = unit
+    view.basePlate = basePlate
+    view.blizzardUnitFrame = basePlate.UnitFrame
+    view.castDuration = nil
+    view.interruptCooldown = nil
+    view.isChannel = nil
+    view.markerInterruptible = nil
+    view.identity = nil
+    view.identityNameApplied = nil
+    view.cast:Hide()
+    view.castIconFrame:Hide()
+    view.interruptMarkerFrame:Hide()
+end
+
+function Runtime:GetPlateIdentity(view, builder)
+    if not view.identity then
+        view.identity = builder()
+    end
+
+    return view.identity
+end
+
 local function initializeAuraButton(
     auraButton,
     border,
@@ -888,6 +938,14 @@ end
 
 local function createNativeAuraContainers(view, unit)
     if not supportsNativeAuraContainers() then
+        return
+    end
+
+    if view.auraContainer and view.importantBuffContainer then
+        view.auraContainer:SetUnit(unit)
+        view.auraContainer:SetEnabled(true)
+        view.importantBuffContainer:SetUnit(unit)
+        view.importantBuffContainer:SetEnabled(true)
         return
     end
 
@@ -1137,7 +1195,7 @@ local function updateCastVisual(view, duration, cooldown)
 end
 
 function Runtime:RefreshCastCooldowns(refreshMarkers)
-    for _, view in pairs(self.activePlates) do
+    for _, view in pairs(self.castingPlates) do
         if view.cast:IsShown() and view.castDuration then
             view.interruptCooldown = self:GetInterruptCooldown()
 
@@ -1159,6 +1217,10 @@ function Runtime:RefreshCastCooldowns(refreshMarkers)
 end
 
 function Runtime:GetPlayerRole()
+    if self.playerRole then
+        return self.playerRole
+    end
+
     local assignedRole = UnitGroupRolesAssigned("player")
     local specializationIndex = GetSpecialization()
     local specializationRole
@@ -1167,29 +1229,21 @@ function Runtime:GetPlayerRole()
         specializationRole = GetSpecializationRole(specializationIndex)
     end
 
-    return CombatState:ResolvePlayerRole(
+    self.playerRole = CombatState:ResolvePlayerRole(
         assignedRole,
         specializationRole
     )
+
+    return self.playerRole
 end
 
-function Runtime:UpdateHealth(unit)
-    local view = self.activePlates[unit]
+function Runtime:RefreshPlayerRole()
+    self.playerRole = nil
 
-    if not view then
-        return
-    end
+    return self:GetPlayerRole()
+end
 
-    local health = UnitHealth(unit)
-    local maximum = UnitHealthMax(unit)
-    local threatStatus = DisplayText:SafeValue(
-        UnitThreatSituation("player", unit),
-        nil
-    )
-    local reaction = DisplayText:SafeValue(
-        UnitReaction(unit, "player"),
-        nil
-    )
+function Runtime:BuildPlateIdentity(unit)
     local classification = DisplayText:SafeValue(
         UnitClassification(unit),
         "normal"
@@ -1212,15 +1266,6 @@ function Runtime:UpdateHealth(unit)
         UnitIsLieutenant(unit),
         false
     )
-    local threatState = CombatState:GetThreatState(
-        self:GetPlayerRole(),
-        threatStatus
-    )
-    local isIdleNeutral = CombatState:IsIdleNeutral(
-        reaction,
-        4,
-        threatStatus
-    )
     local profileColorKey = NpcClassification:GetColorKey({
         playerLevel = UnitLevel("player"),
         effectiveLevel = effectiveLevel,
@@ -1239,15 +1284,58 @@ function Runtime:UpdateHealth(unit)
         appearanceClassification = "rareelite"
     end
 
-    local colorKey = Appearance:GetHealthColorKey(
-        appearanceClassification,
-        profileColorKey == "caster",
-        threatState,
-        isIdleNeutral
-    )
+    return {
+        appearanceClassification = appearanceClassification,
+        isCaster = profileColorKey == "caster",
+        name = DisplayText:ShortenName(UnitName(unit)),
+    }
+end
 
-    setStatusBarColor(view.health, Config.colors[colorKey])
-    setNameText(view, DisplayText:ShortenName(UnitName(unit)))
+function Runtime:UpdateHealth(unit, shouldUpdateAppearance, shouldUpdateAbsorb)
+    local view = self.activePlates[unit]
+
+    if not view then
+        return
+    end
+
+    local identity = self:GetPlateIdentity(view, function()
+        return self:BuildPlateIdentity(unit)
+    end)
+    local health = UnitHealth(unit)
+    local maximum = UnitHealthMax(unit)
+
+    if not view.identityNameApplied then
+        setNameText(view, identity.name)
+        view.identityNameApplied = true
+    end
+
+    if shouldUpdateAppearance ~= false then
+        local threatStatus = DisplayText:SafeValue(
+            UnitThreatSituation("player", unit),
+            nil
+        )
+        local reaction = DisplayText:SafeValue(
+            UnitReaction(unit, "player"),
+            nil
+        )
+        local threatState = CombatState:GetThreatState(
+            self:GetPlayerRole(),
+            threatStatus
+        )
+        local isIdleNeutral = CombatState:IsIdleNeutral(
+            reaction,
+            4,
+            threatStatus
+        )
+        local colorKey = Appearance:GetHealthColorKey(
+            identity.appearanceClassification,
+            identity.isCaster,
+            threatState,
+            isIdleNeutral
+        )
+
+        setStatusBarColor(view.health, Config.colors[colorKey])
+    end
 
     self:UpdateHealthValues(
         unit,
@@ -1255,6 +1343,10 @@ function Runtime:UpdateHealth(unit)
         health,
         maximum
     )
+
+    if shouldUpdateAbsorb ~= false then
+        self:UpdateAbsorbValues(unit, view)
+    end
     view.healthMarker:SetAlpha(UnitHealthPercent(
         unit,
         true,
@@ -1303,6 +1395,7 @@ function Runtime:UpdateCast(unit, event)
     end
 
     if not name then
+        self:SetCastingPlate(unit, view, false)
         view.cast:Hide()
         view.castIconFrame:Hide()
         view.interruptMarkerFrame:Hide()
@@ -1323,6 +1416,7 @@ function Runtime:UpdateCast(unit, event)
     )
 
     if not view.castDuration then
+        self:SetCastingPlate(unit, view, false)
         view.cast:Hide()
         return
     end
@@ -1373,6 +1467,7 @@ function Runtime:UpdateCast(unit, event)
         view.castDuration,
         view.interruptCooldown
     )
+    self:SetCastingPlate(unit, view, true)
     view.cast:Show()
     self:UpdateHealth(unit)
 end
@@ -1414,7 +1509,6 @@ end
 function Runtime:UpdateHealthValues(unit, view, health, maximum)
     view.health:SetMinMaxValues(0, maximum)
     view.health:SetValue(health)
-    self:UpdateAbsorbValues(unit, view)
 end
 
 function Runtime:AddFriendlyPlate(unit, basePlate)
@@ -1508,10 +1602,9 @@ function Runtime:AddPlate(unit)
         return
     end
 
-    local view = createPlateView(basePlate)
-    view.basePlate = basePlate
-    view.unit = unit
-    view.blizzardUnitFrame = basePlate.UnitFrame
+    local view = self:AcquirePlateView(basePlate, createPlateView)
+
+    self:PreparePlateView(view, unit, basePlate)
 
     if Config.hideBlizzardFrame then
         self:SetBlizzardFrameHidden(view, true)
@@ -1522,7 +1615,7 @@ function Runtime:AddPlate(unit)
     createNativeAuraContainers(view, unit)
     self.lastAddResult = "added:" .. tostring(unit)
 
-    self:UpdateSelectionIndicators()
+    self:UpdateSelectionIndicator(unit, view)
     self:UpdateRaidTarget(unit)
     self:UpdateHealth(unit)
     self:UpdateCast(unit)
@@ -1618,40 +1711,44 @@ function Runtime:ApplyTargetHealthHeight(view, isTarget)
     view.healthSectionHeight = height
 end
 
+function Runtime:UpdateSelectionIndicator(plateUnit, view)
+    local isTarget = DisplayText:SafeValue(
+        UnitIsUnit(plateUnit, "target"),
+        false
+    )
+    local isMouseover = DisplayText:SafeValue(
+        UnitIsUnit(plateUnit, "mouseover"),
+        false
+    )
+    local isFocus = DisplayText:SafeValue(
+        UnitIsUnit(plateUnit, "focus"),
+        false
+    )
+    local focusStyle = Appearance:GetFocusStyle(isFocus, isTarget)
+
+    self:ApplyTargetHealthHeight(view, isTarget)
+    view:SetAlpha(focusStyle.alpha)
+    view.focusOverlay:SetAlpha(focusStyle.overlayAlpha)
+    view.focusBorder:SetShown(
+        focusStyle.borderColorKey == "focus"
+    )
+    view.health:GetStatusBarTexture():SetDesaturated(
+        focusStyle.desaturated
+    )
+    view.targetIndicator:SetShown(
+        TargetIndicator:ShouldShow(isTarget)
+    )
+    view.healthMarker:SetShown(
+        FrameLayout:ShouldShowHealthMarker(isTarget)
+    )
+    view.hoverIndicator:SetShown(
+        TargetIndicator:ShouldShowHover(isMouseover, isTarget)
+    )
+end
+
 function Runtime:UpdateSelectionIndicators()
     for plateUnit, view in pairs(self.activePlates) do
-        local isTarget = DisplayText:SafeValue(
-            UnitIsUnit(plateUnit, "target"),
-            false
-        )
-        local isMouseover = DisplayText:SafeValue(
-            UnitIsUnit(plateUnit, "mouseover"),
-            false
-        )
-        local isFocus = DisplayText:SafeValue(
-            UnitIsUnit(plateUnit, "focus"),
-            false
-        )
-        local focusStyle = Appearance:GetFocusStyle(isFocus, isTarget)
-
-        self:ApplyTargetHealthHeight(view, isTarget)
-        view:SetAlpha(focusStyle.alpha)
-        view.focusOverlay:SetAlpha(focusStyle.overlayAlpha)
-        view.focusBorder:SetShown(
-            focusStyle.borderColorKey == "focus"
-        )
-        view.health:GetStatusBarTexture():SetDesaturated(
-            focusStyle.desaturated
-        )
-        view.targetIndicator:SetShown(
-            TargetIndicator:ShouldShow(isTarget)
-        )
-        view.healthMarker:SetShown(
-            FrameLayout:ShouldShowHealthMarker(isTarget)
-        )
-        view.hoverIndicator:SetShown(
-            TargetIndicator:ShouldShowHover(isMouseover, isTarget)
-        )
+        self:UpdateSelectionIndicator(plateUnit, view)
     end
 end
 
@@ -1689,6 +1786,7 @@ function Runtime:RemovePlate(unit)
     end
 
     view:Hide()
+    self:SetCastingPlate(unit, view, false)
 
     if view.auraContainer then
         view.auraContainer:SetEnabled(false)
@@ -1699,13 +1797,10 @@ function Runtime:RemovePlate(unit)
     end
 
     view.auraLayer:Hide()
-    view.auraLayer:SetParent(nil)
     view.importantBuffLayer:Hide()
-    view.importantBuffLayer:SetParent(nil)
 
     self:SetBlizzardFrameHidden(view, false)
 
-    view:SetParent(nil)
     self.activePlates[unit] = nil
     self:RefreshUpdateDriver()
 end
@@ -1724,6 +1819,8 @@ function Runtime:ReleaseAllPlates()
     for _, unit in ipairs(units) do
         self:RemovePlate(unit)
     end
+
+    self.castingPlates = {}
 
 end
 
@@ -1768,18 +1865,27 @@ function Runtime:OnEvent(event, unit, _, spellID)
         self:AddPlate(unit)
     elseif event == "NAME_PLATE_UNIT_REMOVED" then
         self:RemovePlate(unit)
-    elseif event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH" or
-        event == "UNIT_ABSORB_AMOUNT_CHANGED" then
-        self:UpdateHealth(unit)
+    elseif event == "UNIT_HEALTH" then
+        self:UpdateHealth(unit, false, false)
+    elseif event == "UNIT_MAXHEALTH" then
+        self:UpdateHealth(unit, false, true)
+    elseif event == "UNIT_ABSORB_AMOUNT_CHANGED" then
+        local view = self.activePlates[unit]
+
+        if view then
+            self:UpdateAbsorbValues(unit, view)
+        end
     elseif event == "UNIT_FACTION" or
         event == "UNIT_THREAT_SITUATION_UPDATE" then
-        self:UpdateHealth(unit)
+        self:UpdateHealth(unit, true, false)
     elseif event == "UNIT_AURA" then
         self:UpdateAuras(unit)
     elseif event == "RAID_TARGET_UPDATE" then
         self:RefreshRaidTargets()
     elseif event == "PLAYER_SPECIALIZATION_CHANGED" or
+        event == "PLAYER_ROLES_ASSIGNED" or
         event == "TRAIT_CONFIG_UPDATED" or event == "SPELLS_CHANGED" then
+        self:RefreshPlayerRole()
         self:RefreshInterruptSpell()
 
         for plateUnit in pairs(self.activePlates) do
@@ -1804,6 +1910,48 @@ function Runtime:OnEvent(event, unit, _, spellID)
         event == "UPDATE_MOUSEOVER_UNIT" then
         self:UpdateSelectionIndicators()
     end
+end
+
+function Runtime:GetEventRegistrationPlan(hasNativeAuras)
+    local events = {
+        "NAME_PLATE_UNIT_ADDED",
+        "NAME_PLATE_UNIT_REMOVED",
+        "PLAYER_ENTERING_WORLD",
+        "PLAYER_LEAVING_WORLD",
+        "PLAYER_TARGET_CHANGED",
+        "PLAYER_FOCUS_CHANGED",
+        "PLAYER_REGEN_ENABLED",
+        "RAID_TARGET_UPDATE",
+        "UPDATE_MOUSEOVER_UNIT",
+        "PLAYER_SPECIALIZATION_CHANGED",
+        "PLAYER_ROLES_ASSIGNED",
+        "SPELL_UPDATE_COOLDOWN",
+        "TRAIT_CONFIG_UPDATED",
+        "SPELLS_CHANGED",
+        "UNIT_HEALTH",
+        "UNIT_MAXHEALTH",
+        "UNIT_ABSORB_AMOUNT_CHANGED",
+        "UNIT_FACTION",
+        "UNIT_THREAT_SITUATION_UPDATE",
+        "UNIT_SPELLCAST_START",
+        "UNIT_SPELLCAST_STOP",
+        "UNIT_SPELLCAST_CHANNEL_START",
+        "UNIT_SPELLCAST_CHANNEL_STOP",
+        "UNIT_SPELLCAST_INTERRUPTIBLE",
+        "UNIT_SPELLCAST_INTERRUPTED",
+        "UNIT_SPELLCAST_NOT_INTERRUPTIBLE",
+    }
+
+    if not hasNativeAuras then
+        events[#events + 1] = "UNIT_AURA"
+    end
+
+    return {
+        events = events,
+        playerEvents = {
+            UNIT_SPELLCAST_SUCCEEDED = true,
+        },
+    }
 end
 
 function Runtime:Enable()
@@ -1831,40 +1979,19 @@ function Runtime:Enable()
         self:OnUpdate(elapsed)
     end
 
-    local events = {
-        "NAME_PLATE_UNIT_ADDED",
-        "NAME_PLATE_UNIT_REMOVED",
-        "PLAYER_ENTERING_WORLD",
-        "PLAYER_LEAVING_WORLD",
-        "PLAYER_TARGET_CHANGED",
-        "PLAYER_FOCUS_CHANGED",
-        "PLAYER_REGEN_ENABLED",
-        "RAID_TARGET_UPDATE",
-        "UPDATE_MOUSEOVER_UNIT",
-        "PLAYER_SPECIALIZATION_CHANGED",
-        "SPELL_UPDATE_COOLDOWN",
-        "TRAIT_CONFIG_UPDATED",
-        "SPELLS_CHANGED",
-        "UNIT_HEALTH",
-        "UNIT_MAXHEALTH",
-        "UNIT_ABSORB_AMOUNT_CHANGED",
-        "UNIT_FACTION",
-        "UNIT_AURA",
-        "UNIT_THREAT_SITUATION_UPDATE",
-        "UNIT_SPELLCAST_START",
-        "UNIT_SPELLCAST_STOP",
-        "UNIT_SPELLCAST_CHANNEL_START",
-        "UNIT_SPELLCAST_CHANNEL_STOP",
-        "UNIT_SPELLCAST_INTERRUPTIBLE",
-        "UNIT_SPELLCAST_INTERRUPTED",
-        "UNIT_SPELLCAST_NOT_INTERRUPTIBLE",
-        "UNIT_SPELLCAST_SUCCEEDED",
-    }
+    local registrationPlan = self:GetEventRegistrationPlan(
+        supportsNativeAuraContainers()
+    )
 
-    for _, event in ipairs(events) do
+    for _, event in ipairs(registrationPlan.events) do
         self.frame:RegisterEvent(event)
     end
 
+    for event in pairs(registrationPlan.playerEvents) do
+        self.frame:RegisterUnitEvent(event, "player")
+    end
+
+    self:RefreshPlayerRole()
     self:RefreshInterruptSpell()
 
     for _, basePlate in ipairs(C_NamePlate.GetNamePlates()) do

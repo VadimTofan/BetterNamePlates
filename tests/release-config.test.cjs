@@ -106,6 +106,11 @@ assert.doesNotMatch(
   "Runtime must not retain interrupter-attribution events",
 );
 assert.doesNotMatch(
+  runtime,
+  /self:UpdateSelectionIndicators\(\)\s*self:UpdateRaidTarget\(unit\)/,
+  "admitting one plate must not refresh selection state for every plate",
+);
+assert.doesNotMatch(
   interrupts,
   /GetSourcePresentation|GetSourceIconDefinitions|GetSourceGUID/,
   "interrupt helpers must only track the player's own kick",

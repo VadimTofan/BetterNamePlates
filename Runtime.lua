@@ -857,7 +857,20 @@ local function initializeImportantBuffButton(auraButton)
         auraButton,
         AuraDisplay:GetImportantBuffBorder(),
         AuraDisplay:GetImportantBuffIconSize(Config.auraIconSize),
-        AuraDisplay:GetImportantBuffInteraction()
+        AuraDisplay:GetImportantBuffInteraction(),
+        nil,
+        AuraDisplay:GetRightAuraTimerPresentation(Config)
+    )
+end
+
+local function initializeCrowdControlButton(auraButton)
+    initializeAuraButton(
+        auraButton,
+        AuraDisplay:GetCrowdControlBorder(),
+        AuraDisplay:GetImportantBuffIconSize(Config.auraIconSize),
+        AuraDisplay:GetImportantBuffInteraction(),
+        nil,
+        AuraDisplay:GetRightAuraTimerPresentation(Config)
     )
 end
 
@@ -877,7 +890,7 @@ local function initializePurgeableBuffButton(auraButton)
         AuraDisplay:GetImportantBuffIconSize(Config.auraIconSize),
         AuraDisplay:GetImportantBuffInteraction(),
         nil,
-        AuraDisplay:GetBoldTimerPresentation(Config)
+        AuraDisplay:GetRightAuraTimerPresentation(Config)
     )
 end
 
@@ -981,6 +994,8 @@ local function createNativeAuraContainers(view, unit)
 
         if group.key == "purgeableBuffs" then
             initializeFrame = initializePurgeableBuffButton
+        elseif group.key == "crowdControl" then
+            initializeFrame = initializeCrowdControlButton
         end
 
         rightAuraGroups[index] = {

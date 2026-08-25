@@ -168,6 +168,22 @@ Describe("Player debuff display", function()
         ExpectEqual(border.color[4], 1)
     end)
 
+    It("uses a one pixel light blue border for crowd control", function()
+        -- Given
+        local namespace = {}
+        local auraDisplay = LoadAddonFile("AuraDisplay.lua", namespace)
+
+        -- When
+        local border = auraDisplay:GetCrowdControlBorder()
+
+        -- Then
+        ExpectEqual(border.thickness, 1)
+        ExpectEqual(border.color[1], 0)
+        ExpectEqual(border.color[2], 0.8196)
+        ExpectEqual(border.color[3], 1)
+        ExpectEqual(border.color[4], 1)
+    end)
+
     It("uses the base size for important enemy buff and crowd-control icons", function()
         -- Given
         local namespace = {}
@@ -241,6 +257,29 @@ Describe("Player debuff display", function()
         -- Then
         ExpectEqual(presentation.font, "Expressway.ttf")
         ExpectEqual(presentation.fontFlags, "OUTLINE")
+    end)
+
+    It("uses white bold text above the swipe for right-side aura timers", function()
+        -- Given
+        local namespace = {}
+        local auraDisplay = LoadAddonFile("AuraDisplay.lua", namespace)
+        local config = {
+            expresswayFontFlags = "OUTLINE",
+            nameFont = "Expressway.ttf",
+        }
+
+        -- When
+        local presentation =
+            auraDisplay:GetRightAuraTimerPresentation(config)
+
+        -- Then
+        ExpectEqual(presentation.font, "Expressway.ttf")
+        ExpectEqual(presentation.fontFlags, "OUTLINE")
+        ExpectEqual(presentation.color[1], 1)
+        ExpectEqual(presentation.color[2], 1)
+        ExpectEqual(presentation.color[3], 1)
+        ExpectEqual(presentation.color[4], 1)
+        ExpectEqual(presentation.aboveSwipe, true)
     end)
 
     It("reverses the debuff cooldown swipe", function()

@@ -10,6 +10,10 @@ local PURGEABLE_BUFF_BORDER = {
     thickness = 1,
     color = {0, 1, 0, 1},
 }
+local CROWD_CONTROL_BORDER = {
+    thickness = 1,
+    color = {0, 0.8196, 1, 1},
+}
 local IMPORTANT_BUFF_LEFT_ADJUSTMENT = 10
 local IMPORTANT_BUFF_ICON_SCALE = 1
 local PURGEABLE_BUFF_FILTER = "HELPFUL|RAID_PLAYER_DISPELLABLE"
@@ -134,6 +138,10 @@ function AuraDisplay:GetPurgeableBuffBorder()
     return PURGEABLE_BUFF_BORDER
 end
 
+function AuraDisplay:GetCrowdControlBorder()
+    return CROWD_CONTROL_BORDER
+end
+
 function AuraDisplay:GetImportantBuffIconSize(baseIconSize)
     return baseIconSize * IMPORTANT_BUFF_ICON_SCALE
 end
@@ -172,6 +180,15 @@ function AuraDisplay:GetBoldTimerPresentation(config)
         font = config.nameFont,
         fontFlags = config.expresswayFontFlags,
     }
+end
+
+function AuraDisplay:GetRightAuraTimerPresentation(config)
+    local presentation = self:GetBoldTimerPresentation(config)
+
+    presentation.color = {1, 1, 1, 1}
+    presentation.aboveSwipe = true
+
+    return presentation
 end
 
 function AuraDisplay:ShouldReverseCooldown()

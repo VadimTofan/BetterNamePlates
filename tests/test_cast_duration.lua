@@ -105,10 +105,32 @@ Describe("Secret-safe cast durations", function()
         }
 
         -- When
-        local direction = castDuration:GetTimerDirection(timerDirections)
+        local direction = castDuration:GetTimerDirection(
+            false,
+            timerDirections
+        )
 
         -- Then
         ExpectEqual(direction, timerDirections.ElapsedTime)
+    end)
+
+    It("selects remaining time so channels drain from right to left", function()
+        -- Given
+        local namespace = {}
+        local castDuration = LoadAddonFile("CastDuration.lua", namespace)
+        local timerDirections = {
+            ElapsedTime = 0,
+            RemainingTime = 1,
+        }
+
+        -- When
+        local direction = castDuration:GetTimerDirection(
+            true,
+            timerDirections
+        )
+
+        -- Then
+        ExpectEqual(direction, timerDirections.RemainingTime)
     end)
 
     It("lays out the cooldown timeline from left to right", function()
@@ -117,12 +139,26 @@ Describe("Secret-safe cast durations", function()
         local castDuration = LoadAddonFile("CastDuration.lua", namespace)
 
         -- When
-        local layout = castDuration:GetCooldownOverlayLayout()
+        local layout = castDuration:GetCooldownOverlayLayout(false)
 
         -- Then
         ExpectEqual(layout.reverseFill, false)
         ExpectEqual(layout.markerAnchor, "CENTER")
         ExpectEqual(layout.markerPoint, "RIGHT")
+    end)
+
+    It("mirrors the cooldown timeline for channels", function()
+        -- Given
+        local namespace = {}
+        local castDuration = LoadAddonFile("CastDuration.lua", namespace)
+
+        -- When
+        local layout = castDuration:GetCooldownOverlayLayout(true)
+
+        -- Then
+        ExpectEqual(layout.reverseFill, true)
+        ExpectEqual(layout.markerAnchor, "CENTER")
+        ExpectEqual(layout.markerPoint, "LEFT")
     end)
 
     It("snapshots the kick-ready marker position", function()

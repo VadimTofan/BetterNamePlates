@@ -128,6 +128,10 @@ function AuraDisplay:ShouldReverseCooldown()
     return true
 end
 
+function AuraDisplay:GetTextOverlayFrameLevel(cooldownFrameLevel)
+    return cooldownFrameLevel + 1
+end
+
 function AuraDisplay:ShouldEnableMouse()
     return false
 end

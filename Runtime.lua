@@ -6,6 +6,7 @@ local AuraDisplay = namespace.AuraDisplay
 local CastDuration = namespace.CastDuration
 local CombatState = namespace.CombatState
 local DisplayText = namespace.DisplayText
+local FriendlyNameStyle = namespace.FriendlyNameStyle
 local FrameLayout = namespace.FrameLayout
 local HealthFormat = namespace.HealthFormat
 local Interrupts = namespace.Interrupts
@@ -18,6 +19,7 @@ local TargetIndicator = namespace.TargetIndicator
 local Runtime = {
     activePlates = {},
     activeCasts = {},
+    friendlyPlates = {},
 }
 
 function Runtime:AdvanceRefreshClock(current, elapsed, interval)
@@ -93,14 +95,14 @@ local function createBorder(frame, thickness, color)
     end
 end
 
-local function createSelectionBorder(healthBar)
+local function createSelectionBorder(healthBar, thickness)
     local indicator = CreateFrame("Frame", nil, healthBar)
 
     indicator:SetAllPoints(healthBar)
     indicator:SetFrameLevel(healthBar:GetFrameLevel() + 3)
     createBorder(
         indicator,
-        Config.targetBorderThickness,
+        thickness,
         Config.colors.target
     )
     indicator:Hide()
@@ -109,7 +111,10 @@ local function createSelectionBorder(healthBar)
 end
 
 local function createTargetIndicator(healthBar)
-    local indicator = createSelectionBorder(healthBar)
+    local indicator = createSelectionBorder(
+        healthBar,
+        Config.targetBorderThickness
+    )
     local color = Config.colors.target
 
     local arrowLayout = TargetIndicator:GetArrowLayout(
@@ -356,7 +361,10 @@ local function createPlateView(basePlate)
     )
 
     view.targetIndicator = createTargetIndicator(view.healthForeground)
-    view.hoverIndicator = createSelectionBorder(view.healthForeground)
+    view.hoverIndicator = createSelectionBorder(
+        view.healthForeground,
+        Config.hoverBorderThickness
+    )
     view.raidTargetIcon = createRaidTargetIndicator(view.healthForeground)
 
     view.focusOverlay =
@@ -461,14 +469,16 @@ local function createPlateView(basePlate)
     table.insert(view.nameLayers, view.name)
 
     local healthTextAnchors = FrameLayout:GetHealthTextAnchors(
-        Config.contentPadding
+        Config.healthTextLeftPadding,
+        Config.contentPadding,
+        Config.healthTextBottomPadding
     )
 
     view.healthText = view.healthForeground:CreateFontString(nil, "OVERLAY")
     view.healthText:SetFont(
         Config.healthFont,
         Config.healthFontSize,
-        "OUTLINE"
+        Config.expresswayFontFlags
     )
     view.healthText:SetPoint(
         healthTextAnchors.health.point,
@@ -485,7 +495,7 @@ local function createPlateView(basePlate)
     view.healthPercentage:SetFont(
         Config.healthFont,
         Config.healthFontSize,
-        "OUTLINE"
+        Config.expresswayFontFlags
     )
     view.healthPercentage:SetPoint(
         healthTextAnchors.percentage.point,
@@ -558,7 +568,11 @@ local function createPlateView(basePlate)
     setTextureColor(view.interruptMarker, Config.colors.interruptMarker)
 
     view.castText = view.castForeground:CreateFontString(nil, "OVERLAY")
-    view.castText:SetFont(Config.castFont, Config.castFontSize, "OUTLINE")
+    view.castText:SetFont(
+        Config.castFont,
+        Config.castFontSize,
+        Config.expresswayFontFlags
+    )
     local castTextAnchor = FrameLayout:GetCastTextAnchor(
         Config.castTextLeftPadding,
         Config.castTextBottomPadding
@@ -574,7 +588,11 @@ local function createPlateView(basePlate)
     view.castText:SetJustifyH("LEFT")
 
     view.castTime = view.castForeground:CreateFontString(nil, "OVERLAY")
-    view.castTime:SetFont(Config.castFont, Config.castFontSize, "OUTLINE")
+    view.castTime:SetFont(
+        Config.castFont,
+        Config.castFontSize,
+        Config.expresswayFontFlags
+    )
     local castTimeAnchor = FrameLayout:GetCastTimeAnchor(
         Config.castTimeRightPadding,
         Config.castTimeBottomPadding
@@ -646,7 +664,6 @@ local function createPlateView(basePlate)
         view.healthForeground:GetFrameStrata(),
         view.healthForeground:GetFrameLevel() + 10
     )
-
     view.auras = {}
 
     if not supportsNativeAuraContainers() then
@@ -685,7 +702,8 @@ local function initializeAuraButton(
     border,
     iconSize,
     interaction,
-    fontSize
+    fontSize,
+    textPresentation
 )
     iconSize = iconSize or Config.auraIconSize
     fontSize = fontSize or Config.auraFontSize
@@ -731,7 +749,23 @@ local function initializeAuraButton(
     )
     auraButton:SetDurationCooldown(auraButton.cooldown)
 
-    auraButton.durationText = auraButton:CreateFontString(nil, "OVERLAY")
+    textPresentation = textPresentation or {}
+    local textParent = auraButton
+
+    if textPresentation.aboveSwipe then
+        auraButton.bnpTextOverlay = CreateFrame("Frame", nil, auraButton)
+        auraButton.bnpTextOverlay:SetAllPoints(auraButton)
+        auraButton.bnpTextOverlay:SetFrameLevel(
+            AuraDisplay:GetTextOverlayFrameLevel(
+                auraButton.cooldown:GetFrameLevel()
+            )
+        )
+        textParent = auraButton.bnpTextOverlay
+    end
+
+    local textColor = textPresentation.color or Config.colors.auraTimer
+
+    auraButton.durationText = textParent:CreateFontString(nil, "OVERLAY")
     auraButton.durationText:SetFont(
         Config.font,
         fontSize,
@@ -739,16 +773,16 @@ local function initializeAuraButton(
     )
     auraButton.durationText:SetPoint("CENTER", auraButton, "CENTER")
     auraButton.durationText:SetTextColor(
-        Config.colors.auraTimer[1],
-        Config.colors.auraTimer[2],
-        Config.colors.auraTimer[3],
-        Config.colors.auraTimer[4]
+        textColor[1],
+        textColor[2],
+        textColor[3],
+        textColor[4]
     )
     auraButton:SetDurationText(auraButton.durationText, {
         textFormatter = Runtime.auraTimeFormatter,
     })
 
-    auraButton.countText = auraButton:CreateFontString(nil, "OVERLAY")
+    auraButton.countText = textParent:CreateFontString(nil, "OVERLAY")
     auraButton.countText:SetFont(
         Config.font,
         fontSize,
@@ -768,7 +802,11 @@ local function initializeDebuffButton(auraButton)
         nil,
         layout.iconSize,
         nil,
-        layout.fontSize
+        layout.fontSize,
+        {
+            aboveSwipe = true,
+            color = Config.colors.debuffTimer,
+        }
     )
 end
 
@@ -1284,11 +1322,12 @@ function Runtime:UpdateCast(unit, event)
         view.castDuration,
         Enum.StatusBarInterpolation.Immediate,
         CastDuration:GetTimerDirection(
+            isChannel,
             Enum.StatusBarTimerDirection
         )
     )
     local cooldownOverlayLayout =
-        CastDuration:GetCooldownOverlayLayout()
+        CastDuration:GetCooldownOverlayLayout(isChannel)
 
     view.interruptMarkerFrame:ClearAllPoints()
     view.interruptMarkerTrack:SetReverseFill(
@@ -1383,13 +1422,54 @@ function Runtime:UpdateHealthValues(unit, view, health, maximum)
     self:UpdateAbsorbValues(unit, view)
 end
 
+function Runtime:AddFriendlyPlate(unit, basePlate)
+    local unitFrame = basePlate and basePlate.UnitFrame
+    local name = unitFrame and unitFrame.name
+
+    if not name then
+        self.lastAddResult = "missing-friendly-name:" .. tostring(unit)
+        return
+    end
+
+    self.friendlyPlates[unit] = FriendlyNameStyle:Apply(
+        unitFrame,
+        name:GetText()
+    )
+    self.lastAddResult = "friendly-player:" .. tostring(unit)
+end
+
+function Runtime:RemoveFriendlyPlate(unit)
+    local view = self.friendlyPlates[unit]
+
+    if not view then
+        return false
+    end
+
+    FriendlyNameStyle:Restore(view)
+    self.friendlyPlates[unit] = nil
+
+    return true
+end
+
 function Runtime:AddPlate(unit)
-    if self.activePlates[unit] then
+    if self.activePlates[unit] or self.friendlyPlates[unit] then
         self.lastAddResult = "duplicate:" .. tostring(unit)
         return
     end
 
-    if not UnitCanAttack("player", unit) then
+    local canAttack = UnitCanAttack("player", unit)
+
+    if FriendlyNameStyle:ShouldStyle({
+        isPlayer = UnitIsPlayer(unit),
+        canAttack = canAttack,
+    }) then
+        local friendlyBasePlate = C_NamePlate.GetNamePlateForUnit(unit)
+
+        self:AddFriendlyPlate(unit, friendlyBasePlate)
+        return
+    end
+
+    if not canAttack then
         self.lastAddResult = "not-attackable:" .. tostring(unit)
         return
     end
@@ -1589,6 +1669,10 @@ function Runtime:UpdateHoverIndicators()
 end
 
 function Runtime:RemovePlate(unit)
+    if self:RemoveFriendlyPlate(unit) then
+        return
+    end
+
     local view = self.activePlates[unit]
 
     if not view then
@@ -1622,6 +1706,10 @@ function Runtime:ReleaseAllPlates()
     local units = {}
 
     for unit in pairs(self.activePlates) do
+        units[#units + 1] = unit
+    end
+
+    for unit in pairs(self.friendlyPlates) do
         units[#units + 1] = unit
     end
 
@@ -1802,6 +1890,7 @@ function Runtime:Enable()
         "UNIT_SPELLCAST_CHANNEL_START",
         "UNIT_SPELLCAST_CHANNEL_STOP",
         "UNIT_SPELLCAST_INTERRUPTIBLE",
+        "UNIT_SPELLCAST_INTERRUPTED",
         "UNIT_SPELLCAST_NOT_INTERRUPTIBLE",
         "UNIT_SPELLCAST_SUCCEEDED",
     }

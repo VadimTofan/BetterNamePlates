@@ -46,6 +46,7 @@ dofile("tests/test_npc_classification.lua")
 dofile("tests/test_target_indicator.lua")
 dofile("tests/test_raid_target_indicator.lua")
 dofile("tests/test_appearance.lua")
+dofile("tests/test_friendly_name_style.lua")
 
 for _, testCase in ipairs(tests) do
     local passed, testError = pcall(testCase.test)

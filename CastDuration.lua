@@ -29,7 +29,11 @@ function CastDuration:GetProgress(duration)
     return duration:GetRemainingDuration()
 end
 
-function CastDuration:GetTimerDirection(timerDirections)
+function CastDuration:GetTimerDirection(isChannel, timerDirections)
+    if isChannel then
+        return timerDirections.RemainingTime
+    end
+
     return timerDirections.ElapsedTime
 end
 
@@ -46,7 +50,15 @@ function CastDuration:BindRemainingTime(
     )
 end
 
-function CastDuration:GetCooldownOverlayLayout()
+function CastDuration:GetCooldownOverlayLayout(isChannel)
+    if isChannel then
+        return {
+            reverseFill = true,
+            markerAnchor = "CENTER",
+            markerPoint = "LEFT",
+        }
+    end
+
     return {
         reverseFill = false,
         markerAnchor = "CENTER",

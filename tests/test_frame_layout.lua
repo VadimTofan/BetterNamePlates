@@ -162,13 +162,15 @@ Describe("Nameplate frame layout", function()
         local frameLayout = LoadAddonFile("FrameLayout.lua", namespace)
 
         -- When
-        local anchors = frameLayout:GetHealthTextAnchors(3)
+        local anchors = frameLayout:GetHealthTextAnchors(5, 3, 1)
 
         -- Then
         ExpectEqual(anchors.health.point, "LEFT")
-        ExpectEqual(anchors.health.x, 3)
+        ExpectEqual(anchors.health.x, 5)
+        ExpectEqual(anchors.health.y, 1)
         ExpectEqual(anchors.percentage.point, "RIGHT")
         ExpectEqual(anchors.percentage.x, -3)
+        ExpectEqual(anchors.percentage.y, 1)
     end)
 
     It("does not clip raid markers at the health bar boundary", function()

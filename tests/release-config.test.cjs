@@ -51,6 +51,9 @@ assert.ok(
 );
 
 const runtime = readRepositoryFile("Runtime.lua");
+const interrupts = readRepositoryFile("Interrupts.lua");
+const config = readRepositoryFile("Config.lua");
+const auraDisplay = readRepositoryFile("AuraDisplay.lua");
 const healthFontUses = runtime.match(/Config\.healthFont(?!Size)/g) ?? [];
 
 assert.equal(
@@ -60,13 +63,53 @@ assert.equal(
 );
 
 const castFontUses = runtime.match(/Config\.castFont(?!Size)/g) ?? [];
+const expresswayOutlineUses =
+  runtime.match(/Config\.expresswayFontFlags/g) ?? [];
 
 assert.equal(
   castFontUses.length,
   2,
   "cast spell names and timers must use castFont",
 );
+assert.equal(
+  expresswayOutlineUses.length,
+  4,
+  "health and cast text must use the shared Expressway outline flag",
+);
+assert.match(
+  runtime,
+  /createSelectionBorder\(\s*view\.healthForeground,\s*Config\.hoverBorderThickness\s*\)/,
+  "hover borders must use their independent thickness",
+);
+assert.doesNotMatch(
+  runtime,
+  /ShowInterruptSource|EnsureInterruptSourceTextures|interruptSourceIcon/,
+  "Runtime must not retain interrupter-attribution rendering",
+);
+assert.doesNotMatch(
+  runtime,
+  /Interrupts:IsSourceEvent|UNIT_SPELLCAST_EMPOWER_STOP/,
+  "Runtime must not retain interrupter-attribution events",
+);
+assert.doesNotMatch(
+  interrupts,
+  /GetSourcePresentation|GetSourceIconDefinitions|GetSourceGUID/,
+  "interrupt helpers must only track the player's own kick",
+);
+assert.doesNotMatch(
+  config,
+  /interruptSourceDuration/,
+  "Config must not retain interrupter-attribution timing",
+);
+assert.doesNotMatch(
+  auraDisplay,
+  /GetInterruptSourceLayout/,
+  "aura layout must not reserve space for interrupter attribution",
+);
 
 console.log("PASS validates tag-driven CurseForge release configuration");
 console.log("PASS applies the configured health font to every health text layer");
 console.log("PASS applies the configured cast font to spell names and timers");
+console.log("PASS outlines every Runtime Expressway text layer");
+console.log("PASS uses the independent hover-border thickness");
+console.log("PASS excludes deferred interrupter-attribution UI");

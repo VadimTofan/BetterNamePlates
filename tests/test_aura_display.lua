@@ -203,6 +203,20 @@ Describe("Player debuff display", function()
         ExpectEqual(shouldReverse, true)
     end)
 
+    It("places debuff text above the cooldown swipe", function()
+        -- Given
+        local namespace = {}
+        local auraDisplay = LoadAddonFile("AuraDisplay.lua", namespace)
+        local cooldownFrameLevel = 12
+
+        -- When
+        local textFrameLevel =
+            auraDisplay:GetTextOverlayFrameLevel(cooldownFrameLevel)
+
+        -- Then
+        ExpectEqual(textFrameLevel, 13)
+    end)
+
     It("disables debuff icon tooltips and mouse input", function()
         -- Given
         local namespace = {}

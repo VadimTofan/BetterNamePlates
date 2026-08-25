@@ -70,19 +70,23 @@ function FrameLayout:GetNameBoldOffset(offset)
     return {x = offset, y = 0}
 end
 
-function FrameLayout:GetHealthTextAnchors(padding)
+function FrameLayout:GetHealthTextAnchors(
+    leftPadding,
+    rightPadding,
+    bottomPadding
+)
     return {
         health = {
             point = "LEFT",
             relativePoint = "LEFT",
-            x = padding,
-            y = 0,
+            x = leftPadding,
+            y = bottomPadding,
         },
         percentage = {
             point = "RIGHT",
             relativePoint = "RIGHT",
-            x = -padding,
-            y = 0,
+            x = -rightPadding,
+            y = bottomPadding,
         },
     }
 end

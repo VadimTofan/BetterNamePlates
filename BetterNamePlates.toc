@@ -15,6 +15,7 @@ NpcClassification.lua
 TargetIndicator.lua
 RaidTargetIndicator.lua
 Appearance.lua
+FriendlyNameStyle.lua
 FrameLayout.lua
 CombatState.lua
 Interrupts.lua

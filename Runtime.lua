@@ -46,8 +46,7 @@ function Runtime:RefreshUpdateDriver()
         return
     end
 
-    local hasTrackedPlates = next(self.activePlates) or
-        next(self.friendlyPlates)
+    local hasTrackedPlates = next(self.activePlates)
     local handler = hasTrackedPlates and
         self.onUpdateHandler or nil
 
@@ -820,6 +819,15 @@ local function initializeImportantBuffButton(auraButton)
     )
 end
 
+function Runtime:GetHiddenBlizzardFrame()
+    if not self.hiddenBlizzardFrame then
+        self.hiddenBlizzardFrame = CreateFrame("Frame")
+        self.hiddenBlizzardFrame:Hide()
+    end
+
+    return self.hiddenBlizzardFrame
+end
+
 local function initializePurgeableBuffButton(auraButton)
     initializeAuraButton(
         auraButton,
@@ -1385,30 +1393,26 @@ function Runtime:SetBlizzardFrameHidden(view, shouldHide)
         return
     end
 
-    local aurasFrame = unitFrame.AurasFrame
-
     if shouldHide then
-        if view.blizzardAlpha == nil then
-            view.blizzardAlpha = unitFrame:GetAlpha()
+        if not view.blizzardParentCaptured then
+            view.blizzardParent = unitFrame:GetParent()
+            view.blizzardParentCaptured = true
         end
 
-        unitFrame:SetAlpha(0)
-
-        if aurasFrame then
-            if view.blizzardAurasAlpha == nil then
-                view.blizzardAurasAlpha = aurasFrame:GetAlpha()
-            end
-
-            aurasFrame:SetAlpha(0)
+        if unitFrame.WidgetContainer then
+            unitFrame.WidgetContainer:SetParent(view.basePlate)
         end
 
+        unitFrame:SetParent(self:GetHiddenBlizzardFrame())
         return
     end
 
-    unitFrame:SetAlpha(view.blizzardAlpha or 1)
+    if view.blizzardParentCaptured then
+        unitFrame:SetParent(view.blizzardParent)
+    end
 
-    if aurasFrame then
-        aurasFrame:SetAlpha(view.blizzardAurasAlpha or 1)
+    if unitFrame.WidgetContainer then
+        unitFrame.WidgetContainer:SetParent(unitFrame)
     end
 end
 
@@ -1449,7 +1453,8 @@ function Runtime:AddFriendlyPlate(unit, basePlate)
         basePlate,
         unitFrame,
         name:GetText(),
-        classColor
+        classColor,
+        self:GetHiddenBlizzardFrame()
     )
     self:RefreshUpdateDriver()
     self.lastAddResult = "friendly-player:" .. tostring(unit)
@@ -1524,6 +1529,7 @@ function Runtime:AddPlate(unit)
     end
 
     local view = createPlateView(basePlate)
+    view.basePlate = basePlate
     view.unit = unit
     view.blizzardUnitFrame = basePlate.UnitFrame
 
@@ -1743,21 +1749,6 @@ function Runtime:ReleaseForLoadingScreen(collect)
     collect()
 end
 
-function Runtime:SuppressBlizzardFrames()
-    for _, view in pairs(self.activePlates) do
-        if view.blizzardUnitFrame and
-            view.blizzardUnitFrame:GetAlpha() ~= 0 then
-            view.blizzardUnitFrame:SetAlpha(0)
-        end
-    end
-
-    for _, view in pairs(self.friendlyPlates) do
-        if view.unitFrame:GetAlpha() ~= 0 then
-            FriendlyNameStyle:Suppress(view)
-        end
-    end
-end
-
 function Runtime:OnUpdate(elapsed)
     local shouldRefreshHover
 
@@ -1795,18 +1786,6 @@ function Runtime:OnUpdate(elapsed)
         self.castRefreshElapsed = nil
     end
 
-    local shouldSuppressBlizzardFrames
-
-    shouldSuppressBlizzardFrames, self.frameSuppressionElapsed =
-        self:AdvanceRefreshClock(
-            self.frameSuppressionElapsed,
-            elapsed,
-            Config.frameSuppressionInterval
-        )
-
-    if shouldSuppressBlizzardFrames and Config.hideBlizzardFrame then
-        self:SuppressBlizzardFrames()
-    end
 end
 
 function Runtime:OnEvent(event, unit, _, spellID)
@@ -1953,10 +1932,10 @@ function Runtime:Disable()
     self.stackingPending = nil
     self.hoverRefreshElapsed = nil
     self.castRefreshElapsed = nil
-    self.frameSuppressionElapsed = nil
     self.castTimeFormatter = nil
     self.auraTimeFormatter = nil
     self:ReleaseAllPlates()
+    self.hiddenBlizzardFrame = nil
 
 end
 

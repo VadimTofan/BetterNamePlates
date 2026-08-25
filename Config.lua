@@ -23,7 +23,6 @@ local Config = {
     castHeight = 11.2,
     castGap = 0,
     castRefreshInterval = 0.05,
-    frameSuppressionInterval = 0.3,
     castIconSize = 11.2,
     castIconGap = 1,
     castMarkerWidth = 2,

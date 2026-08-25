@@ -394,7 +394,7 @@ Describe("Runtime diagnostics", function()
         -- Then
         ExpectEqual(handlerWithoutPlates, nil)
         ExpectEqual(handlerWithHostilePlate, updateHandler)
-        ExpectEqual(assignedHandler, updateHandler)
+        ExpectEqual(assignedHandler, nil)
     end)
 
     It("does not expose dungeon completion cleanup", function()
@@ -466,7 +466,7 @@ Describe("Runtime diagnostics", function()
         ExpectEqual(state.lastAddResult, "not-attackable:nameplate3")
     end)
 
-    It("hides and restores Blizzard unit and aura frames", function()
+    It("moves Blizzard enemy frames under a hidden parent and restores them", function()
         -- Given
         local namespace = {
             Config = {},
@@ -475,87 +475,40 @@ Describe("Runtime diagnostics", function()
             Rules = {},
         }
         local runtime = LoadAddonFile("Runtime.lua", namespace)
-        local unitAlpha = 0.8
-        local auraAlpha = 0.6
+        local originalParent = {}
+        local hiddenParent = {}
+        local basePlate = {}
+        local currentParent = originalParent
+        local widgetParent
+        local widgetContainer = {
+            SetParent = function(_, parent)
+                widgetParent = parent
+            end,
+        }
+        runtime.hiddenBlizzardFrame = hiddenParent
         local view = {
+            basePlate = basePlate,
             blizzardUnitFrame = {
-                GetAlpha = function()
-                    return unitAlpha
+                WidgetContainer = widgetContainer,
+                GetParent = function()
+                    return currentParent
                 end,
-                SetAlpha = function(_, value)
-                    unitAlpha = value
+                SetParent = function(_, parent)
+                    currentParent = parent
                 end,
-                AurasFrame = {
-                    GetAlpha = function()
-                        return auraAlpha
-                    end,
-                    SetAlpha = function(_, value)
-                        auraAlpha = value
-                    end,
-                },
             },
         }
 
         -- When
         runtime:SetBlizzardFrameHidden(view, true)
-        local hiddenUnitAlpha = unitAlpha
-        local hiddenAuraAlpha = auraAlpha
+        local hiddenFrameParent = currentParent
+        local visibleWidgetParent = widgetParent
         runtime:SetBlizzardFrameHidden(view, false)
 
         -- Then
-        ExpectEqual(hiddenUnitAlpha, 0)
-        ExpectEqual(hiddenAuraAlpha, 0)
-        ExpectEqual(unitAlpha, 0.8)
-        ExpectEqual(auraAlpha, 0.6)
-    end)
-
-    It("re-suppresses Blizzard visuals for hostile and friendly plates", function()
-        -- Given
-        local hostileAlpha = 1
-        local friendlyAlpha = 1
-        local namespace = {
-            Config = {},
-            CombatState = {},
-            FrameLayout = {},
-            Rules = {},
-            FriendlyNameStyle = {
-                Suppress = function(_, view)
-                    view.unitFrame:SetAlpha(0)
-                end,
-            },
-        }
-        local runtime = LoadAddonFile("Runtime.lua", namespace)
-
-        runtime.activePlates = {
-            nameplate1 = {
-                blizzardUnitFrame = {
-                    GetAlpha = function()
-                        return hostileAlpha
-                    end,
-                    SetAlpha = function(_, alpha)
-                        hostileAlpha = alpha
-                    end,
-                },
-            },
-        }
-        runtime.friendlyPlates = {
-            nameplate2 = {
-                unitFrame = {
-                    GetAlpha = function()
-                        return friendlyAlpha
-                    end,
-                    SetAlpha = function(_, alpha)
-                        friendlyAlpha = alpha
-                    end,
-                },
-            },
-        }
-
-        -- When
-        runtime:SuppressBlizzardFrames()
-
-        -- Then
-        ExpectEqual(hostileAlpha, 0)
-        ExpectEqual(friendlyAlpha, 0)
+        ExpectEqual(hiddenFrameParent, hiddenParent)
+        ExpectEqual(visibleWidgetParent, basePlate)
+        ExpectEqual(currentParent, originalParent)
+        ExpectEqual(widgetParent, view.blizzardUnitFrame)
     end)
 end)

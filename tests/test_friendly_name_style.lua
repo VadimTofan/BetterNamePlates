@@ -294,6 +294,117 @@ Describe("FriendlyNameStyle", function()
         ExpectEqual(appliedColor[4], 1)
     end)
 
+    It("suppresses a replacement Blizzard unit frame", function()
+        -- Given
+        local originalAlpha = 0
+        local replacementAlpha = 1
+        local originalFrame = {
+            SetAlpha = function(_, alpha)
+                originalAlpha = alpha
+            end,
+        }
+        local replacementFrame = {
+            SetAlpha = function(_, alpha)
+                replacementAlpha = alpha
+            end,
+        }
+        local view = {
+            basePlate = {
+                UnitFrame = replacementFrame,
+            },
+            bold = {
+                SetTextColor = function() end,
+            },
+            name = {
+                GetTextColor = function()
+                    return 1, 1, 1, 1
+                end,
+            },
+            unitFrame = originalFrame,
+        }
+
+        -- When
+        style:Suppress(view)
+
+        -- Then
+        ExpectEqual(originalAlpha, 0)
+        ExpectEqual(replacementAlpha, 0)
+    end)
+
+    It("moves the Blizzard frame under a hidden parent and restores it", function()
+        -- Given
+        local originalParent = {}
+        local hiddenParent = {}
+        local currentParent = originalParent
+        local widgetParent
+        local widget = {
+            SetParent = function(_, parent)
+                widgetParent = parent
+            end,
+        }
+        local name = {
+            GetAlpha = function()
+                return 1
+            end,
+            GetFont = function()
+                return "Blizzard.ttf", 9, ""
+            end,
+            GetTextColor = function()
+                return 0.2, 0.4, 0.6, 1
+            end,
+            SetAlpha = function() end,
+            SetFont = function() end,
+        }
+        local unitFrame = {
+            WidgetContainer = widget,
+            name = name,
+            GetAlpha = function()
+                return 1
+            end,
+            GetParent = function()
+                return currentParent
+            end,
+            SetAlpha = function() end,
+            SetParent = function(_, parent)
+                currentParent = parent
+            end,
+        }
+        local bold = {
+            ClearAllPoints = function() end,
+            Hide = function() end,
+            SetFont = function() end,
+            SetJustifyH = function() end,
+            SetJustifyV = function() end,
+            SetPoint = function() end,
+            SetText = function() end,
+            SetTextColor = function() end,
+            Show = function() end,
+        }
+        local basePlate = {
+            CreateFontString = function()
+                return bold
+            end,
+        }
+
+        -- When
+        local view = style:Apply(
+            basePlate,
+            unitFrame,
+            "Friendly",
+            nil,
+            hiddenParent
+        )
+        local hiddenFrameParent = currentParent
+        local visibleWidgetParent = widgetParent
+        style:Restore(view)
+
+        -- Then
+        ExpectEqual(hiddenFrameParent, hiddenParent)
+        ExpectEqual(visibleWidgetParent, basePlate)
+        ExpectEqual(currentParent, originalParent)
+        ExpectEqual(widgetParent, unitFrame)
+    end)
+
     It("reuses the bold layer on recycled Blizzard frames", function()
         -- Given
         local created = 0

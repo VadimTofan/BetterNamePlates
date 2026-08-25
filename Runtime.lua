@@ -37,7 +37,8 @@ function Runtime:RefreshUpdateDriver()
         return
     end
 
-    local hasTrackedPlates = next(self.activePlates)
+    local hasTrackedPlates = next(self.activePlates) or
+        next(self.friendlyPlates)
     local handler = hasTrackedPlates and
         self.onUpdateHandler or nil
 
@@ -1844,6 +1845,14 @@ function Runtime:ReleaseForLoadingScreen(collect)
     collect()
 end
 
+function Runtime:RefreshFriendlyFrames()
+    for _, view in pairs(self.friendlyPlates) do
+        if FriendlyNameStyle:NeedsSuppression(view) then
+            FriendlyNameStyle:Suppress(view)
+        end
+    end
+end
+
 function Runtime:OnUpdate(elapsed)
     local shouldRefreshHover
 
@@ -1856,6 +1865,19 @@ function Runtime:OnUpdate(elapsed)
 
     if shouldRefreshHover then
         self:UpdateHoverIndicators()
+    end
+
+    local shouldRefreshFriendlyFrames
+
+    shouldRefreshFriendlyFrames, self.friendlyFrameRefreshElapsed =
+        self:AdvanceRefreshClock(
+            self.friendlyFrameRefreshElapsed,
+            elapsed,
+            Config.friendlyFrameRefreshInterval
+        )
+
+    if shouldRefreshFriendlyFrames then
+        self:RefreshFriendlyFrames()
     end
 
 end
@@ -2033,6 +2055,7 @@ function Runtime:Disable()
     self.interruptMarkerRefreshPending = nil
     self.stackingPending = nil
     self.hoverRefreshElapsed = nil
+    self.friendlyFrameRefreshElapsed = nil
     self.castTimeFormatter = nil
     self.auraTimeFormatter = nil
     self:ReleaseAllPlates()

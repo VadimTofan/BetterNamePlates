@@ -55,6 +55,7 @@ local Config = {
     nameGap = 1,
     nameFontSize = 10,
     friendlyNameFontScale = 1.65,
+    friendlyFrameRefreshInterval = 0.3,
     nameFontFlags = "",
     expresswayFontFlags = "OUTLINE",
     nameFont =

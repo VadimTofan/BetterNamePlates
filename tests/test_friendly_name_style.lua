@@ -331,6 +331,32 @@ Describe("FriendlyNameStyle", function()
         ExpectEqual(replacementAlpha, 0)
     end)
 
+    It("detects a Blizzard frame restored outside the hidden parent", function()
+        -- Given
+        local hiddenParent = {}
+        local restoredParent = {}
+        local currentParent = hiddenParent
+        local currentFrame = {
+            GetParent = function()
+                return currentParent
+            end,
+        }
+        local view = {
+            basePlate = {UnitFrame = currentFrame},
+            hiddenParent = hiddenParent,
+            unitFrame = currentFrame,
+        }
+
+        -- When
+        local initiallySuppressed = style:NeedsSuppression(view)
+        currentParent = restoredParent
+        local restoredByBlizzard = style:NeedsSuppression(view)
+
+        -- Then
+        ExpectEqual(initiallySuppressed, false)
+        ExpectEqual(restoredByBlizzard, true)
+    end)
+
     It("moves the Blizzard frame under a hidden parent and restores it", function()
         -- Given
         local originalParent = {}

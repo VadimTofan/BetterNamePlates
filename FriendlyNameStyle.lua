@@ -125,6 +125,21 @@ function FriendlyNameStyle:Suppress(view)
     currentUnitFrame:SetAlpha(0)
 end
 
+function FriendlyNameStyle:NeedsSuppression(view)
+    local currentUnitFrame = view.basePlate and
+        view.basePlate.UnitFrame or view.unitFrame
+
+    if not currentUnitFrame then
+        return false
+    end
+
+    if view.hiddenParent then
+        return currentUnitFrame:GetParent() ~= view.hiddenParent
+    end
+
+    return currentUnitFrame:GetAlpha() ~= 0
+end
+
 function FriendlyNameStyle:Restore(view)
     view.name:SetFont(
         view.originalFont,

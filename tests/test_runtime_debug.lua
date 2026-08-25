@@ -551,7 +551,38 @@ Describe("Runtime diagnostics", function()
         -- Then
         ExpectEqual(handlerWithoutPlates, nil)
         ExpectEqual(handlerWithHostilePlate, updateHandler)
-        ExpectEqual(assignedHandler, nil)
+        ExpectEqual(assignedHandler, updateHandler)
+    end)
+
+    It("re-suppresses only friendly frames restored by Blizzard", function()
+        -- Given
+        local suppressed = 0
+        local namespace = {
+            Config = {},
+            CombatState = {},
+            FrameLayout = {},
+            Rules = {},
+            FriendlyNameStyle = {
+                NeedsSuppression = function(_, view)
+                    return view.restored
+                end,
+                Suppress = function()
+                    suppressed = suppressed + 1
+                end,
+            },
+        }
+        local runtime = LoadAddonFile("Runtime.lua", namespace)
+
+        runtime.friendlyPlates = {
+            nameplate1 = {restored = false},
+            nameplate2 = {restored = true},
+        }
+
+        -- When
+        runtime:RefreshFriendlyFrames()
+
+        -- Then
+        ExpectEqual(suppressed, 1)
     end)
 
     It("does not expose dungeon completion cleanup", function()

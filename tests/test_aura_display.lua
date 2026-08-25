@@ -88,16 +88,51 @@ Describe("Player debuff display", function()
         local filters = auraDisplay:GetImportantBuffFilters()
 
         -- Then
-        ExpectEqual(filters[1], "HELPFUL|BIG_DEFENSIVE")
+        ExpectEqual(
+            filters[1],
+            "HELPFUL|BIG_DEFENSIVE|!RAID_PLAYER_DISPELLABLE"
+        )
         ExpectEqual(
             filters[2],
-            "HELPFUL|EXTERNAL_DEFENSIVE|!BIG_DEFENSIVE"
+            "HELPFUL|EXTERNAL_DEFENSIVE|!BIG_DEFENSIVE" ..
+                "|!RAID_PLAYER_DISPELLABLE"
         )
         ExpectEqual(
             filters[3],
-            "HELPFUL|IMPORTANT|!BIG_DEFENSIVE|!EXTERNAL_DEFENSIVE"
+            "HELPFUL|IMPORTANT|!BIG_DEFENSIVE|!EXTERNAL_DEFENSIVE" ..
+                "|!RAID_PLAYER_DISPELLABLE"
         )
         ExpectEqual(#filters, 3)
+    end)
+
+    It("selects only enemy buffs the current player can purge", function()
+        -- Given
+        local namespace = {}
+        local auraDisplay = LoadAddonFile("AuraDisplay.lua", namespace)
+
+        -- When
+        local filter = auraDisplay:GetPurgeableBuffFilter()
+
+        -- Then
+        ExpectEqual(filter, "HELPFUL|RAID_PLAYER_DISPELLABLE")
+    end)
+
+    It("places purgeable buffs first in the right aura row", function()
+        -- Given
+        local namespace = {}
+        local auraDisplay = LoadAddonFile("AuraDisplay.lua", namespace)
+
+        -- When
+        local groups = auraDisplay:GetRightAuraGroups()
+
+        -- Then
+        ExpectEqual(groups[1].key, "purgeableBuffs")
+        ExpectEqual(
+            groups[1].filter,
+            "HELPFUL|RAID_PLAYER_DISPELLABLE"
+        )
+        ExpectEqual(groups[2].key, "crowdControl")
+        ExpectEqual(#groups, 5)
     end)
 
     It("places important enemy buffs beyond the target arrow width", function()
@@ -174,7 +209,7 @@ Describe("Player debuff display", function()
         })
 
         -- Then
-        ExpectEqual(maximumLineSize, 400)
+        ExpectEqual(maximumLineSize, 500)
     end)
 
     It("formats debuff durations as bare whole numbers", function()

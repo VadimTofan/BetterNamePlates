@@ -820,6 +820,15 @@ local function initializeImportantBuffButton(auraButton)
     )
 end
 
+local function initializePurgeableBuffButton(auraButton)
+    initializeAuraButton(
+        auraButton,
+        AuraDisplay:GetPurgeableBuffBorder(),
+        AuraDisplay:GetImportantBuffIconSize(Config.auraIconSize),
+        AuraDisplay:GetImportantBuffInteraction()
+    )
+end
+
 local function createNativeAuraContainer(
     layer,
     anchor,
@@ -905,19 +914,20 @@ local function createNativeAuraContainers(view, unit)
 
     local importantBuffIconSize =
         AuraDisplay:GetImportantBuffIconSize(Config.auraIconSize)
-    local rightAuraGroups = {{
-        key = "crowdControl",
-        filter = AuraDisplay:GetCrowdControlFilter(),
-        iconSize = importantBuffIconSize,
-        initializeFrame = initializeImportantBuffButton,
-    }}
+    local rightAuraGroups = {}
 
-    for index, filter in ipairs(AuraDisplay:GetImportantBuffFilters()) do
-        rightAuraGroups[index + 1] = {
-            key = "importantBuff" .. index,
-            filter = filter,
+    for index, group in ipairs(AuraDisplay:GetRightAuraGroups()) do
+        local initializeFrame = initializeImportantBuffButton
+
+        if group.key == "purgeableBuffs" then
+            initializeFrame = initializePurgeableBuffButton
+        end
+
+        rightAuraGroups[index] = {
+            key = group.key,
+            filter = group.filter,
             iconSize = importantBuffIconSize,
-            initializeFrame = initializeImportantBuffButton,
+            initializeFrame = initializeFrame,
         }
     end
 

@@ -6,13 +6,44 @@ local IMPORTANT_BUFF_BORDER = {
     thickness = 1,
     color = {1, 0, 0, 1},
 }
+local PURGEABLE_BUFF_BORDER = {
+    thickness = 1,
+    color = {0, 1, 0, 1},
+}
 local IMPORTANT_BUFF_LEFT_ADJUSTMENT = 10
 local IMPORTANT_BUFF_ICON_SCALE = 1
+local PURGEABLE_BUFF_FILTER = "HELPFUL|RAID_PLAYER_DISPELLABLE"
+local CROWD_CONTROL_FILTER = "HARMFUL|CROWD_CONTROL"
 
 local IMPORTANT_BUFF_FILTERS = {
-    "HELPFUL|BIG_DEFENSIVE",
-    "HELPFUL|EXTERNAL_DEFENSIVE|!BIG_DEFENSIVE",
-    "HELPFUL|IMPORTANT|!BIG_DEFENSIVE|!EXTERNAL_DEFENSIVE",
+    "HELPFUL|BIG_DEFENSIVE|!RAID_PLAYER_DISPELLABLE",
+    "HELPFUL|EXTERNAL_DEFENSIVE|!BIG_DEFENSIVE" ..
+        "|!RAID_PLAYER_DISPELLABLE",
+    "HELPFUL|IMPORTANT|!BIG_DEFENSIVE|!EXTERNAL_DEFENSIVE" ..
+        "|!RAID_PLAYER_DISPELLABLE",
+}
+
+local RIGHT_AURA_GROUPS = {
+    {
+        key = "purgeableBuffs",
+        filter = PURGEABLE_BUFF_FILTER,
+    },
+    {
+        key = "crowdControl",
+        filter = CROWD_CONTROL_FILTER,
+    },
+    {
+        key = "importantBuff1",
+        filter = IMPORTANT_BUFF_FILTERS[1],
+    },
+    {
+        key = "importantBuff2",
+        filter = IMPORTANT_BUFF_FILTERS[2],
+    },
+    {
+        key = "importantBuff3",
+        filter = IMPORTANT_BUFF_FILTERS[3],
+    },
 }
 
 local EXCLUDED_SPELL_IDS = {
@@ -29,7 +60,7 @@ function AuraDisplay:GetFilter()
 end
 
 function AuraDisplay:GetCrowdControlFilter()
-    return "HARMFUL|CROWD_CONTROL"
+    return CROWD_CONTROL_FILTER
 end
 
 function AuraDisplay:GetGroupOptions(config)
@@ -76,6 +107,14 @@ function AuraDisplay:GetImportantBuffFilters()
     return IMPORTANT_BUFF_FILTERS
 end
 
+function AuraDisplay:GetPurgeableBuffFilter()
+    return PURGEABLE_BUFF_FILTER
+end
+
+function AuraDisplay:GetRightAuraGroups()
+    return RIGHT_AURA_GROUPS
+end
+
 function AuraDisplay:GetImportantBuffAnchorLayout(iconSpacing, arrowWidth)
     return {
         layerPoint = "LEFT",
@@ -89,6 +128,10 @@ end
 
 function AuraDisplay:GetImportantBuffBorder()
     return IMPORTANT_BUFF_BORDER
+end
+
+function AuraDisplay:GetPurgeableBuffBorder()
+    return PURGEABLE_BUFF_BORDER
 end
 
 function AuraDisplay:GetImportantBuffIconSize(baseIconSize)
@@ -106,7 +149,7 @@ function AuraDisplay:GetImportantBuffInteraction()
 end
 
 function AuraDisplay:GetRightAuraMaximumLineSize(config)
-    local filterCount = #IMPORTANT_BUFF_FILTERS + 1
+    local filterCount = #RIGHT_AURA_GROUPS
     local elementSize = config.iconSize + config.iconSpacing
 
     return config.maxCount * filterCount * elementSize

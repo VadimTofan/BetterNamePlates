@@ -385,9 +385,15 @@ Describe("Runtime diagnostics", function()
         local handlerWithoutPlates = assignedHandler
         runtime.activePlates.nameplate1 = {}
         runtime:RefreshUpdateDriver()
+        local handlerWithHostilePlate = assignedHandler
+        runtime.activePlates = {}
+        runtime.friendlyPlates.nameplate2 = {}
+        assignedHandler = false
+        runtime:RefreshUpdateDriver()
 
         -- Then
         ExpectEqual(handlerWithoutPlates, nil)
+        ExpectEqual(handlerWithHostilePlate, updateHandler)
         ExpectEqual(assignedHandler, updateHandler)
     end)
 
@@ -501,5 +507,55 @@ Describe("Runtime diagnostics", function()
         ExpectEqual(hiddenAuraAlpha, 0)
         ExpectEqual(unitAlpha, 0.8)
         ExpectEqual(auraAlpha, 0.6)
+    end)
+
+    It("re-suppresses Blizzard visuals for hostile and friendly plates", function()
+        -- Given
+        local hostileAlpha = 1
+        local friendlyAlpha = 1
+        local namespace = {
+            Config = {},
+            CombatState = {},
+            FrameLayout = {},
+            Rules = {},
+            FriendlyNameStyle = {
+                Suppress = function(_, view)
+                    view.unitFrame:SetAlpha(0)
+                end,
+            },
+        }
+        local runtime = LoadAddonFile("Runtime.lua", namespace)
+
+        runtime.activePlates = {
+            nameplate1 = {
+                blizzardUnitFrame = {
+                    GetAlpha = function()
+                        return hostileAlpha
+                    end,
+                    SetAlpha = function(_, alpha)
+                        hostileAlpha = alpha
+                    end,
+                },
+            },
+        }
+        runtime.friendlyPlates = {
+            nameplate2 = {
+                unitFrame = {
+                    GetAlpha = function()
+                        return friendlyAlpha
+                    end,
+                    SetAlpha = function(_, alpha)
+                        friendlyAlpha = alpha
+                    end,
+                },
+            },
+        }
+
+        -- When
+        runtime:SuppressBlizzardFrames()
+
+        -- Then
+        ExpectEqual(hostileAlpha, 0)
+        ExpectEqual(friendlyAlpha, 0)
     end)
 end)

@@ -21,34 +21,38 @@ function FriendlyNameStyle:GetPresentation()
     }
 end
 
-function FriendlyNameStyle:Apply(unitFrame, text)
+function FriendlyNameStyle:UpdateColor(view)
+    if view.classColor then
+        view.bold:SetTextColor(
+            view.classColor.r,
+            view.classColor.g,
+            view.classColor.b,
+            1
+        )
+        return
+    end
+
+    view.bold:SetTextColor(view.name:GetTextColor())
+end
+
+function FriendlyNameStyle:Apply(basePlate, unitFrame, text, classColor)
     local name = unitFrame.name
     local presentation = self:GetPresentation()
     local originalFont, originalSize, originalFlags = name:GetFont()
     local originalAlpha = name:GetAlpha()
-    local bold = unitFrame.BetterNamePlatesFriendlyNameBold
+    local originalUnitFrameAlpha = unitFrame:GetAlpha()
+    local bold = basePlate.BetterNamePlatesFriendlyNameBold
     local red, green, blue, alpha = name:GetTextColor()
 
     if not bold then
-        bold = unitFrame:CreateFontString(nil, "OVERLAY")
-        unitFrame.BetterNamePlatesFriendlyNameBold = bold
-        bold:SetPoint(
-            "TOPLEFT",
-            name,
-            "TOPLEFT",
-            presentation.boldOffset,
-            0
-        )
-        bold:SetPoint(
-            "BOTTOMRIGHT",
-            name,
-            "BOTTOMRIGHT",
-            presentation.boldOffset,
-            0
-        )
-        bold:SetJustifyH(name:GetJustifyH())
-        bold:SetJustifyV(name:GetJustifyV())
+        bold = basePlate:CreateFontString(nil, "OVERLAY")
+        basePlate.BetterNamePlatesFriendlyNameBold = bold
     end
+
+    bold:ClearAllPoints()
+    bold:SetPoint("CENTER", basePlate, "CENTER", 0, 0)
+    bold:SetJustifyH("CENTER")
+    bold:SetJustifyV("MIDDLE")
 
     name:SetFont(
         presentation.font,
@@ -61,18 +65,31 @@ function FriendlyNameStyle:Apply(unitFrame, text)
         presentation.fontSize,
         presentation.fontFlags
     )
-    bold:SetTextColor(red, green, blue, alpha)
+    if classColor then
+        bold:SetTextColor(classColor.r, classColor.g, classColor.b, 1)
+    else
+        bold:SetTextColor(red, green, blue, alpha)
+    end
     bold:SetText(text)
     bold:Show()
+    unitFrame:SetAlpha(0)
 
     return {
         bold = bold,
+        classColor = classColor,
         name = name,
+        unitFrame = unitFrame,
         originalFlags = originalFlags,
         originalFont = originalFont,
         originalSize = originalSize,
         originalAlpha = originalAlpha,
+        originalUnitFrameAlpha = originalUnitFrameAlpha,
     }
+end
+
+function FriendlyNameStyle:Suppress(view)
+    self:UpdateColor(view)
+    view.unitFrame:SetAlpha(0)
 end
 
 function FriendlyNameStyle:Restore(view)
@@ -82,6 +99,7 @@ function FriendlyNameStyle:Restore(view)
         view.originalFlags
     )
     view.name:SetAlpha(view.originalAlpha)
+    view.unitFrame:SetAlpha(view.originalUnitFrameAlpha)
     view.bold:Hide()
 end
 

@@ -46,7 +46,8 @@ function Runtime:RefreshUpdateDriver()
         return
     end
 
-    local hasTrackedPlates = next(self.activePlates)
+    local hasTrackedPlates = next(self.activePlates) or
+        next(self.friendlyPlates)
     local handler = hasTrackedPlates and
         self.onUpdateHandler or nil
 
@@ -1431,10 +1432,16 @@ function Runtime:AddFriendlyPlate(unit, basePlate)
         return
     end
 
+    local classBase = DisplayText:SafeValue(UnitClassBase(unit), nil)
+    local classColor = classBase and RAID_CLASS_COLORS[classBase] or nil
+
     self.friendlyPlates[unit] = FriendlyNameStyle:Apply(
+        basePlate,
         unitFrame,
-        name:GetText()
+        name:GetText(),
+        classColor
     )
+    self:RefreshUpdateDriver()
     self.lastAddResult = "friendly-player:" .. tostring(unit)
 end
 
@@ -1447,6 +1454,7 @@ function Runtime:RemoveFriendlyPlate(unit)
 
     FriendlyNameStyle:Restore(view)
     self.friendlyPlates[unit] = nil
+    self:RefreshUpdateDriver()
 
     return true
 end
@@ -1725,6 +1733,21 @@ function Runtime:ReleaseForLoadingScreen(collect)
     collect()
 end
 
+function Runtime:SuppressBlizzardFrames()
+    for _, view in pairs(self.activePlates) do
+        if view.blizzardUnitFrame and
+            view.blizzardUnitFrame:GetAlpha() ~= 0 then
+            view.blizzardUnitFrame:SetAlpha(0)
+        end
+    end
+
+    for _, view in pairs(self.friendlyPlates) do
+        if view.unitFrame:GetAlpha() ~= 0 then
+            FriendlyNameStyle:Suppress(view)
+        end
+    end
+end
+
 function Runtime:OnUpdate(elapsed)
     local shouldRefreshHover
 
@@ -1772,13 +1795,7 @@ function Runtime:OnUpdate(elapsed)
         )
 
     if shouldSuppressBlizzardFrames and Config.hideBlizzardFrame then
-        for _, view in pairs(self.activePlates) do
-            if view.blizzardUnitFrame and
-                view.blizzardUnitFrame:GetAlpha() ~= 0 then
-                view.blizzardUnitFrame:SetAlpha(0)
-            end
-        end
-
+        self:SuppressBlizzardFrames()
     end
 end
 

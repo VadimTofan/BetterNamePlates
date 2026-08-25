@@ -381,7 +381,7 @@ local function createPlateView(basePlate)
     )
     view.focusBorder:Hide()
 
-    local nameAnchor = FrameLayout:GetNameAnchor(2)
+    local nameAnchor = FrameLayout:GetNameAnchor(Config.nameGap)
     local outlineOffsets = FrameLayout:GetNameOutlineOffsets(
         Config.nameOutlineThickness
     )
@@ -1385,26 +1385,15 @@ function Runtime:SetBlizzardFrameHidden(view, shouldHide)
     end
 
     if shouldHide then
-        if not view.blizzardParentCaptured then
-            view.blizzardParent = unitFrame:GetParent()
-            view.blizzardParentCaptured = true
+        if view.blizzardAlpha == nil then
+            view.blizzardAlpha = unitFrame:GetAlpha()
         end
 
-        if unitFrame.WidgetContainer then
-            unitFrame.WidgetContainer:SetParent(view.basePlate)
-        end
-
-        unitFrame:SetParent(self:GetHiddenBlizzardFrame())
+        unitFrame:SetAlpha(0)
         return
     end
 
-    if view.blizzardParentCaptured then
-        unitFrame:SetParent(view.blizzardParent)
-    end
-
-    if unitFrame.WidgetContainer then
-        unitFrame.WidgetContainer:SetParent(unitFrame)
-    end
+    unitFrame:SetAlpha(view.blizzardAlpha or 1)
 end
 
 function Runtime:UpdateAbsorbValues(unit, view)
@@ -1680,6 +1669,11 @@ function Runtime:UpdateHoverIndicators()
         view.hoverIndicator:SetShown(
             TargetIndicator:ShouldShowHover(isMouseover, isTarget)
         )
+
+        if Config.hideBlizzardFrame and view.blizzardUnitFrame and
+            view.blizzardUnitFrame:GetAlpha() ~= 0 then
+            view.blizzardUnitFrame:SetAlpha(0)
+        end
     end
 end
 

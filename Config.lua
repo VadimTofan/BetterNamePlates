@@ -52,6 +52,7 @@ local Config = {
         "Interface\\AddOns\\BetterNamePlates\\media\\absorb_gradient",
     hideBlizzardFrame = true,
     nameMaxLength = 16,
+    nameGap = 1,
     nameFontSize = 10,
     friendlyNameFontScale = 1.65,
     nameFontFlags = "",

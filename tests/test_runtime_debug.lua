@@ -456,7 +456,7 @@ Describe("Runtime diagnostics", function()
         ExpectEqual(state.lastAddResult, "not-attackable:nameplate3")
     end)
 
-    It("moves Blizzard enemy frames under a hidden parent and restores them", function()
+    It("keeps Blizzard enemy click frames in place while hiding visuals", function()
         -- Given
         local namespace = {
             Config = {},
@@ -466,22 +466,18 @@ Describe("Runtime diagnostics", function()
         }
         local runtime = LoadAddonFile("Runtime.lua", namespace)
         local originalParent = {}
-        local hiddenParent = {}
-        local basePlate = {}
         local currentParent = originalParent
-        local widgetParent
-        local widgetContainer = {
-            SetParent = function(_, parent)
-                widgetParent = parent
-            end,
-        }
-        runtime.hiddenBlizzardFrame = hiddenParent
+        local currentAlpha = 0.8
         local view = {
-            basePlate = basePlate,
             blizzardUnitFrame = {
-                WidgetContainer = widgetContainer,
+                GetAlpha = function()
+                    return currentAlpha
+                end,
                 GetParent = function()
                     return currentParent
+                end,
+                SetAlpha = function(_, alpha)
+                    currentAlpha = alpha
                 end,
                 SetParent = function(_, parent)
                     currentParent = parent
@@ -491,14 +487,12 @@ Describe("Runtime diagnostics", function()
 
         -- When
         runtime:SetBlizzardFrameHidden(view, true)
-        local hiddenFrameParent = currentParent
-        local visibleWidgetParent = widgetParent
+        local hiddenAlpha = currentAlpha
         runtime:SetBlizzardFrameHidden(view, false)
 
         -- Then
-        ExpectEqual(hiddenFrameParent, hiddenParent)
-        ExpectEqual(visibleWidgetParent, basePlate)
         ExpectEqual(currentParent, originalParent)
-        ExpectEqual(widgetParent, view.blizzardUnitFrame)
+        ExpectEqual(hiddenAlpha, 0)
+        ExpectEqual(currentAlpha, 0.8)
     end)
 end)

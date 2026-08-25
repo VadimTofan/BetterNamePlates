@@ -5,10 +5,12 @@
 ## Version: 0.4.3
 ## X-Curse-Project-ID: 1664307
 ## IconTexture: Interface\AddOns\BetterNamePlates\icon.png
+## SavedVariables: BetterNamePlatesDB
 
 Namespace.lua
 Identity.lua
 Config.lua
+PlateDimensions.lua
 HealthFormat.lua
 DisplayText.lua
 NpcClassification.lua

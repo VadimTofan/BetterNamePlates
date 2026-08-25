@@ -48,4 +48,32 @@ Describe("Core lifecycle", function()
         ExpectEqual(core:IsEnabled(), false)
     end)
 
+    It("persists dimension commands and resizes active plates", function()
+        -- Given
+        local resizeCount = 0
+        local namespace = {
+            Config = {healthWidth = 135, healthHeight = 13.6},
+            PlateDimensions = LoadAddonFile("PlateDimensions.lua", {}),
+        }
+        local core = LoadAddonFile("Core.lua", namespace)
+        local saved = {}
+
+        core:SetRuntime({
+            ApplyDimensions = function()
+                resizeCount = resizeCount + 1
+            end,
+        })
+        core:SetDatabase(saved)
+        core:InitializeDimensions()
+
+        -- When
+        local result = core:HandleDimensionCommand("width 150")
+
+        -- Then
+        ExpectEqual(result.changed, true)
+        ExpectEqual(saved.width, 150)
+        ExpectEqual(namespace.Config.healthWidth, 150)
+        ExpectEqual(resizeCount, 1)
+    end)
+
 end)

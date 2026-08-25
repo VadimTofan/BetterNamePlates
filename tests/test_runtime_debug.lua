@@ -515,6 +515,33 @@ Describe("Runtime diagnostics", function()
         ExpectEqual(runtime.castingPlates.nameplate1, nil)
     end)
 
+    It("applies changed dimensions to every active hostile plate", function()
+        -- Given
+        local resized = {}
+        local namespace = {
+            Config = {},
+            CombatState = {},
+            FrameLayout = {},
+            Rules = {},
+        }
+        local runtime = LoadAddonFile("Runtime.lua", namespace)
+
+        runtime.activePlates = {
+            nameplate1 = {},
+            nameplate2 = {},
+        }
+        runtime.ResizePlate = function(_, unit)
+            resized[unit] = true
+        end
+
+        -- When
+        runtime:ApplyDimensions()
+
+        -- Then
+        ExpectEqual(resized.nameplate1, true)
+        ExpectEqual(resized.nameplate2, true)
+    end)
+
     It("runs the update driver only while nameplates are active", function()
         -- Given
         local namespace = {

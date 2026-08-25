@@ -11,6 +11,14 @@ assert.ok(
   manifest.includes("## X-Curse-Project-ID: 1664307"),
   "manifest must identify CurseForge project 1664307",
 );
+assert.ok(
+  manifest.includes("## SavedVariables: BetterNamePlatesDB"),
+  "manifest must persist nameplate dimensions",
+);
+assert.ok(
+  manifest.includes("PlateDimensions.lua"),
+  "manifest must load dimension handling before the runtime",
+);
 
 const packageMetadata = readRepositoryFile(".pkgmeta");
 

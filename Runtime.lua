@@ -1705,6 +1705,48 @@ function Runtime:ApplyTargetHealthHeight(view, isTarget)
     view.healthSectionHeight = height
 end
 
+function Runtime:ResizePlate(unit, view)
+    local healthDimensions = FrameLayout:GetHealthDimensions(
+        Config.healthWidth,
+        Config.healthHeight,
+        Config.healthInset,
+        Config.healthRightExtension
+    )
+    local absorbDimensions = FrameLayout:GetInsetDimensions(
+        Config.healthWidth,
+        Config.healthHeight,
+        Config.absorbInset
+    )
+
+    view:SetWidth(Config.healthWidth)
+    view.emptyBar:SetWidth(Config.healthWidth)
+    view.health:SetWidth(healthDimensions.width)
+    view.absorbBar:SetWidth(absorbDimensions.width)
+    view.healthForeground:SetWidth(Config.healthWidth)
+    view.cast:SetWidth(Config.healthWidth)
+    view.interruptMarkerClip:SetWidth(
+        FrameLayout:GetInterruptMarkerClipWidth(
+            Config.healthWidth,
+            Config.castMarkerMaximumProgress,
+            Config.castMarkerWidth
+        )
+    )
+
+    for _, nameLayer in ipairs(view.nameLayers) do
+        nameLayer:SetWidth(Config.healthWidth)
+    end
+
+    view.healthSectionHeight = nil
+    self:UpdateSelectionIndicator(unit, view)
+    NameplateStacking:ApplyBounds(view.basePlate, view)
+end
+
+function Runtime:ApplyDimensions()
+    for unit, view in pairs(self.activePlates) do
+        self:ResizePlate(unit, view)
+    end
+end
+
 function Runtime:UpdateSelectionIndicator(plateUnit, view)
     local isTarget = DisplayText:SafeValue(
         UnitIsUnit(plateUnit, "target"),

@@ -4,6 +4,12 @@ local Config = namespace.Config
 local DisplayText = namespace.DisplayText
 
 local FriendlyNameStyle = {}
+local originalFonts = {}
+local NATIVE_CVARS = {
+    {"nameplateShowOnlyNameForFriendlyPlayerUnits", 1},
+    {"nameplateUseClassColorForFriendlyPlayerUnitNames", 1},
+    {"nameplateShowFriendlyRealmName", 0},
+}
 
 function FriendlyNameStyle:ShouldStyle(unitInfo)
     local isPlayer = DisplayText:SafeValue(unitInfo.isPlayer, false)
@@ -17,147 +23,40 @@ function FriendlyNameStyle:GetPresentation()
         font = Config.nameFont,
         fontSize = Config.nameFontSize * Config.friendlyNameFontScale,
         fontFlags = Config.expresswayFontFlags,
-        boldOffset = Config.nameBoldOffset,
     }
 end
 
-function FriendlyNameStyle:UpdateColor(view)
-    if view.classColor then
-        view.bold:SetTextColor(
-            view.classColor.r,
-            view.classColor.g,
-            view.classColor.b,
-            1
-        )
-        return
+function FriendlyNameStyle:ApplyNativeCVars(setCVar)
+    for _, setting in ipairs(NATIVE_CVARS) do
+        pcall(setCVar, setting[1], setting[2])
     end
-
-    view.bold:SetTextColor(view.name:GetTextColor())
 end
 
-function FriendlyNameStyle:Apply(
-    basePlate,
-    unitFrame,
-    text,
-    classColor,
-    hiddenParent
-)
-    local name = unitFrame.name
+function FriendlyNameStyle:ApplyFontObjects(fontObjects)
     local presentation = self:GetPresentation()
-    local originalFont, originalSize, originalFlags = name:GetFont()
-    local originalAlpha = name:GetAlpha()
-    local originalUnitFrameAlpha = unitFrame:GetAlpha()
-    local originalUnitFrameParent = unitFrame.GetParent and
-        unitFrame:GetParent() or nil
-    local bold = basePlate.BetterNamePlatesFriendlyNameBold
-    local red, green, blue, alpha = name:GetTextColor()
 
-    if not bold then
-        bold = basePlate:CreateFontString(nil, "OVERLAY")
-        basePlate.BetterNamePlatesFriendlyNameBold = bold
-    end
+    for _, fontObject in ipairs(fontObjects) do
+        if fontObject and fontObject.GetFont and fontObject.SetFont then
+            if not originalFonts[fontObject] then
+                local font, size, flags = fontObject:GetFont()
 
-    bold:ClearAllPoints()
-    bold:SetPoint("CENTER", basePlate, "CENTER", 0, 0)
-    bold:SetJustifyH("CENTER")
-    bold:SetJustifyV("MIDDLE")
+                originalFonts[fontObject] = {font, size, flags}
+            end
 
-    name:SetFont(
-        presentation.font,
-        presentation.fontSize,
-        presentation.fontFlags
-    )
-    name:SetAlpha(0)
-    bold:SetFont(
-        presentation.font,
-        presentation.fontSize,
-        presentation.fontFlags
-    )
-    if classColor then
-        bold:SetTextColor(classColor.r, classColor.g, classColor.b, 1)
-    else
-        bold:SetTextColor(red, green, blue, alpha)
-    end
-    bold:SetText(text)
-    bold:Show()
-
-    if hiddenParent then
-        if unitFrame.WidgetContainer then
-            unitFrame.WidgetContainer:SetParent(basePlate)
+            fontObject:SetFont(
+                presentation.font,
+                presentation.fontSize,
+                presentation.fontFlags
+            )
         end
-
-        unitFrame:SetParent(hiddenParent)
-    else
-        unitFrame:SetAlpha(0)
     end
-
-    return {
-        basePlate = basePlate,
-        bold = bold,
-        classColor = classColor,
-        name = name,
-        hiddenParent = hiddenParent,
-        unitFrame = unitFrame,
-        originalFlags = originalFlags,
-        originalFont = originalFont,
-        originalSize = originalSize,
-        originalAlpha = originalAlpha,
-        originalUnitFrameAlpha = originalUnitFrameAlpha,
-        originalUnitFrameParent = originalUnitFrameParent,
-    }
 end
 
-function FriendlyNameStyle:Suppress(view)
-    self:UpdateColor(view)
-
-    local currentUnitFrame = view.basePlate and
-        view.basePlate.UnitFrame or view.unitFrame
-
-    if view.hiddenParent then
-        if currentUnitFrame.WidgetContainer then
-            currentUnitFrame.WidgetContainer:SetParent(view.basePlate)
-        end
-
-        currentUnitFrame:SetParent(view.hiddenParent)
-        return
+function FriendlyNameStyle:RestoreFontObjects()
+    for fontObject, original in pairs(originalFonts) do
+        fontObject:SetFont(original[1], original[2], original[3])
+        originalFonts[fontObject] = nil
     end
-
-    currentUnitFrame:SetAlpha(0)
-end
-
-function FriendlyNameStyle:NeedsSuppression(view)
-    local currentUnitFrame = view.basePlate and
-        view.basePlate.UnitFrame or view.unitFrame
-
-    if not currentUnitFrame then
-        return false
-    end
-
-    if view.hiddenParent then
-        return currentUnitFrame:GetParent() ~= view.hiddenParent
-    end
-
-    return currentUnitFrame:GetAlpha() ~= 0
-end
-
-function FriendlyNameStyle:Restore(view)
-    view.name:SetFont(
-        view.originalFont,
-        view.originalSize,
-        view.originalFlags
-    )
-    view.name:SetAlpha(view.originalAlpha)
-    view.unitFrame:SetAlpha(view.originalUnitFrameAlpha)
-
-    if view.originalUnitFrameParent then
-        view.unitFrame:SetParent(view.originalUnitFrameParent)
-    end
-
-    if view.unitFrame.WidgetContainer then
-        view.unitFrame.WidgetContainer:SetParent(view.unitFrame)
-    end
-
-    view.bold:Hide()
 end
 
 namespace.FriendlyNameStyle = FriendlyNameStyle

@@ -37,8 +37,7 @@ function Runtime:RefreshUpdateDriver()
         return
     end
 
-    local hasTrackedPlates = next(self.activePlates) or
-        next(self.friendlyPlates)
+    local hasTrackedPlates = next(self.activePlates)
     local handler = hasTrackedPlates and
         self.onUpdateHandler or nil
 
@@ -1528,38 +1527,17 @@ function Runtime:UpdateHealthValues(unit, view, health, maximum)
 end
 
 function Runtime:AddFriendlyPlate(unit, basePlate)
-    local unitFrame = basePlate and basePlate.UnitFrame
-    local name = unitFrame and unitFrame.name
-
-    if not name then
-        self.lastAddResult = "missing-friendly-name:" .. tostring(unit)
-        return
-    end
-
-    local classBase = DisplayText:SafeValue(UnitClassBase(unit), nil)
-    local classColor = classBase and RAID_CLASS_COLORS[classBase] or nil
-
-    self.friendlyPlates[unit] = FriendlyNameStyle:Apply(
-        basePlate,
-        unitFrame,
-        name:GetText(),
-        classColor,
-        self:GetHiddenBlizzardFrame()
-    )
-    self:RefreshUpdateDriver()
+    self.friendlyPlates[unit] = basePlate or true
+    FriendlyNameStyle:ApplyFontObjects(self:GetFriendlyFontObjects())
     self.lastAddResult = "friendly-player:" .. tostring(unit)
 end
 
 function Runtime:RemoveFriendlyPlate(unit)
-    local view = self.friendlyPlates[unit]
-
-    if not view then
+    if not self.friendlyPlates[unit] then
         return false
     end
 
-    FriendlyNameStyle:Restore(view)
     self.friendlyPlates[unit] = nil
-    self:RefreshUpdateDriver()
 
     return true
 end
@@ -1845,14 +1823,6 @@ function Runtime:ReleaseForLoadingScreen(collect)
     collect()
 end
 
-function Runtime:RefreshFriendlyFrames()
-    for _, view in pairs(self.friendlyPlates) do
-        if FriendlyNameStyle:NeedsSuppression(view) then
-            FriendlyNameStyle:Suppress(view)
-        end
-    end
-end
-
 function Runtime:OnUpdate(elapsed)
     local shouldRefreshHover
 
@@ -1867,19 +1837,60 @@ function Runtime:OnUpdate(elapsed)
         self:UpdateHoverIndicators()
     end
 
-    local shouldRefreshFriendlyFrames
+end
 
-    shouldRefreshFriendlyFrames, self.friendlyFrameRefreshElapsed =
-        self:AdvanceRefreshClock(
-            self.friendlyFrameRefreshElapsed,
-            elapsed,
-            Config.friendlyFrameRefreshInterval
-        )
+function Runtime:GetFriendlyFontObjects()
+    local fontObjects = {}
 
-    if shouldRefreshFriendlyFrames then
-        self:RefreshFriendlyFrames()
+    if SystemFont_NamePlate then
+        fontObjects[#fontObjects + 1] = SystemFont_NamePlate
     end
 
+    if SystemFont_NamePlate_Outlined then
+        fontObjects[#fontObjects + 1] = SystemFont_NamePlate_Outlined
+    end
+
+    return fontObjects
+end
+
+function Runtime:RefreshFriendlyPresentation(
+    isInCombat,
+    setCVar,
+    fontObjects
+)
+    FriendlyNameStyle:ApplyFontObjects(
+        fontObjects or self:GetFriendlyFontObjects()
+    )
+
+    if isInCombat then
+        self.friendlyCVarPending = true
+        return false
+    end
+
+    FriendlyNameStyle:ApplyNativeCVars(setCVar or SetCVar)
+    self.friendlyCVarPending = nil
+
+    return true
+end
+
+function Runtime:InstallFriendlyOptionsHook()
+    if self.friendlyOptionsHooked or not NamePlateDriverFrame or
+        not NamePlateDriverFrame.UpdateNamePlateOptions then
+        return
+    end
+
+    self.friendlyOptionsHooked = true
+    hooksecurefunc(
+        NamePlateDriverFrame,
+        "UpdateNamePlateOptions",
+        function()
+            if self.frame then
+                self:RefreshFriendlyPresentation(
+                    InCombatLockdown and InCombatLockdown()
+                )
+            end
+        end
+    )
 end
 
 function Runtime:OnEvent(event, unit, _, spellID)
@@ -1888,6 +1899,11 @@ function Runtime:OnEvent(event, unit, _, spellID)
             collectgarbage("collect")
         end)
         return
+    end
+
+    if event == "PLAYER_REGEN_ENABLED" and
+        self.friendlyCVarPending then
+        self:RefreshFriendlyPresentation(false)
     end
 
     if NameplateStacking:ShouldApplyOnEvent(
@@ -2030,6 +2046,10 @@ function Runtime:Enable()
 
     self:RefreshPlayerRole()
     self:RefreshInterruptSpell()
+    self:RefreshFriendlyPresentation(
+        InCombatLockdown and InCombatLockdown()
+    )
+    self:InstallFriendlyOptionsHook()
 
     for _, basePlate in ipairs(C_NamePlate.GetNamePlates()) do
         local unit = basePlate.namePlateUnitToken
@@ -2055,10 +2075,11 @@ function Runtime:Disable()
     self.interruptMarkerRefreshPending = nil
     self.stackingPending = nil
     self.hoverRefreshElapsed = nil
-    self.friendlyFrameRefreshElapsed = nil
+    self.friendlyCVarPending = nil
     self.castTimeFormatter = nil
     self.auraTimeFormatter = nil
     self:ReleaseAllPlates()
+    FriendlyNameStyle:RestoreFontObjects()
     self.hiddenBlizzardFrame = nil
 
 end

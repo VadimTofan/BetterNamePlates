@@ -551,38 +551,72 @@ Describe("Runtime diagnostics", function()
         -- Then
         ExpectEqual(handlerWithoutPlates, nil)
         ExpectEqual(handlerWithHostilePlate, updateHandler)
-        ExpectEqual(assignedHandler, updateHandler)
+        ExpectEqual(assignedHandler, nil)
     end)
 
-    It("re-suppresses only friendly frames restored by Blizzard", function()
+    It("defers native friendly CVars in combat but still applies fonts", function()
         -- Given
-        local suppressed = 0
+        local fontApplications = 0
+        local cvarApplications = 0
         local namespace = {
             Config = {},
             CombatState = {},
             FrameLayout = {},
             Rules = {},
             FriendlyNameStyle = {
-                NeedsSuppression = function(_, view)
-                    return view.restored
+                ApplyFontObjects = function()
+                    fontApplications = fontApplications + 1
                 end,
-                Suppress = function()
-                    suppressed = suppressed + 1
+                ApplyNativeCVars = function()
+                    cvarApplications = cvarApplications + 1
                 end,
             },
         }
         local runtime = LoadAddonFile("Runtime.lua", namespace)
 
-        runtime.friendlyPlates = {
-            nameplate1 = {restored = false},
-            nameplate2 = {restored = true},
-        }
-
         -- When
-        runtime:RefreshFriendlyFrames()
+        local appliedInCombat = runtime:RefreshFriendlyPresentation(
+            true,
+            function() end,
+            {}
+        )
+        local pendingInCombat = runtime.friendlyCVarPending
+        local appliedAfterCombat = runtime:RefreshFriendlyPresentation(
+            false,
+            function() end,
+            {}
+        )
 
         -- Then
-        ExpectEqual(suppressed, 1)
+        ExpectEqual(appliedInCombat, false)
+        ExpectEqual(pendingInCombat, true)
+        ExpectEqual(appliedAfterCombat, true)
+        ExpectEqual(runtime.friendlyCVarPending, nil)
+        ExpectEqual(fontApplications, 2)
+        ExpectEqual(cvarApplications, 1)
+    end)
+
+    It("reapplies the shared friendly font when a player plate appears", function()
+        -- Given
+        local fontApplications = 0
+        local namespace = {
+            Config = {},
+            CombatState = {},
+            FrameLayout = {},
+            Rules = {},
+            FriendlyNameStyle = {
+                ApplyFontObjects = function()
+                    fontApplications = fontApplications + 1
+                end,
+            },
+        }
+        local runtime = LoadAddonFile("Runtime.lua", namespace)
+
+        -- When
+        runtime:AddFriendlyPlate("nameplate1", {})
+
+        -- Then
+        ExpectEqual(fontApplications, 1)
     end)
 
     It("does not expose dungeon completion cleanup", function()

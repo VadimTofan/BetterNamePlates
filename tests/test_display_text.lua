@@ -33,6 +33,19 @@ Describe("Restricted display text", function()
         ExpectEqual(result, "Imp")
     end)
 
+    It("ignores the realm returned alongside a unit name", function()
+        -- Given
+        local function getCrossRealmName()
+            return "Softcore", "Dragonmaw"
+        end
+
+        -- When
+        local result = displayText:ShortenName(getCrossRealmName())
+
+        -- Then
+        ExpectEqual(result, "Soft…")
+    end)
+
     It("shortens ordinary names to the configured length", function()
         -- Given
         local name = "Ordinary Name"

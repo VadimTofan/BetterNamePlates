@@ -21,7 +21,9 @@ function DisplayText:ShortenName(name, secretCheck)
         return ""
     end
 
-    secretCheck = secretCheck or defaultSecretCheck
+    if type(secretCheck) ~= "function" then
+        secretCheck = defaultSecretCheck
+    end
 
     if secretCheck(name) then
         return name

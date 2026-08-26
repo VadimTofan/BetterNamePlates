@@ -754,4 +754,40 @@ Describe("Runtime diagnostics", function()
         ExpectEqual(hiddenAlpha, 0)
         ExpectEqual(currentAlpha, 0.8)
     end)
+
+    It("immediately suppresses Blizzard alpha resets on enemy plates", function()
+        -- Given
+        local namespace = {
+            Config = {},
+            CombatState = {},
+            FrameLayout = {},
+            Rules = {},
+        }
+        local runtime = LoadAddonFile("Runtime.lua", namespace)
+        local currentAlpha = 1
+        local alphaHook
+        local view = {
+            blizzardUnitFrame = {
+                GetAlpha = function()
+                    return currentAlpha
+                end,
+                SetAlpha = function(_, alpha)
+                    currentAlpha = alpha
+                end,
+            },
+        }
+        local function installHook(_, method, callback)
+            ExpectEqual(method, "SetAlpha")
+            alphaHook = callback
+        end
+
+        -- When
+        runtime:InstallBlizzardFrameSuppression(view, installHook)
+        runtime:SetBlizzardFrameHidden(view, true)
+        currentAlpha = 1
+        alphaHook()
+
+        -- Then
+        ExpectEqual(currentAlpha, 0)
+    end)
 end)

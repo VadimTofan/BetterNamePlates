@@ -1487,6 +1487,32 @@ function Runtime:UpdateCast(unit, event)
     self:UpdateHealth(unit)
 end
 
+function Runtime:InstallBlizzardFrameSuppression(view, installHook)
+    local unitFrame = view and view.blizzardUnitFrame
+
+    if not unitFrame or view.blizzardSuppressionHooked then
+        return
+    end
+
+    local hook = installHook or hooksecurefunc
+
+    if not hook then
+        return
+    end
+
+    view.blizzardSuppressionHooked = true
+    hook(
+        unitFrame,
+        "SetAlpha",
+        function()
+            if view.blizzardFrameSuppressed and
+                unitFrame:GetAlpha() ~= 0 then
+                unitFrame:SetAlpha(0)
+            end
+        end
+    )
+end
+
 function Runtime:SetBlizzardFrameHidden(view, shouldHide)
     local unitFrame = view and view.blizzardUnitFrame
 
@@ -1499,10 +1525,13 @@ function Runtime:SetBlizzardFrameHidden(view, shouldHide)
             view.blizzardAlpha = unitFrame:GetAlpha()
         end
 
+        view.blizzardFrameSuppressed = true
+        self:InstallBlizzardFrameSuppression(view)
         unitFrame:SetAlpha(0)
         return
     end
 
+    view.blizzardFrameSuppressed = nil
     unitFrame:SetAlpha(view.blizzardAlpha or 1)
 end
 

@@ -228,18 +228,34 @@ Describe("Player debuff display", function()
         ExpectEqual(maximumLineSize, 500)
     end)
 
-    It("formats debuff durations as bare whole numbers", function()
+    It("formats aura durations as seconds minutes and hours", function()
         -- Given
         local namespace = {}
         local auraDisplay = LoadAddonFile("AuraDisplay.lua", namespace)
 
         -- When
-        local breakpoint = auraDisplay:GetDurationBreakpoint()
+        local breakpoints = auraDisplay:GetDurationBreakpoints()
+        local seconds = breakpoints[1]
+        local minutes = breakpoints[2]
+        local hours = breakpoints[3]
 
         -- Then
-        ExpectEqual(breakpoint.threshold, 0)
-        ExpectEqual(breakpoint.step, 1)
-        ExpectEqual(breakpoint.format, "%d")
+        ExpectEqual(seconds.threshold, 0)
+        ExpectEqual(seconds.step, 1)
+        ExpectEqual(seconds.rounding, 2)
+        ExpectEqual(seconds.format, "%d")
+
+        ExpectEqual(minutes.threshold, 60)
+        ExpectEqual(minutes.format, "%d:%02d")
+        ExpectEqual(minutes.components[1].div, 60)
+        ExpectEqual(minutes.components[1].rounding, 2)
+        ExpectEqual(minutes.components[2].mod, 60)
+        ExpectEqual(minutes.components[2].rounding, 2)
+
+        ExpectEqual(hours.threshold, 3600)
+        ExpectEqual(hours.format, "%dh")
+        ExpectEqual(hours.components[1].div, 3600)
+        ExpectEqual(hours.components[1].rounding, 2)
     end)
 
     It("uses the Expressway presentation for bold aura timers", function()

@@ -142,6 +142,42 @@ Describe("Runtime diagnostics", function()
         )
     end)
 
+    It("installs every aura duration formatting breakpoint", function()
+        -- Given
+        local expectedBreakpoints = {{threshold = 0}, {threshold = 60}, {
+            threshold = 3600,
+        }}
+        local installedBreakpoints = {}
+        local formatter = {
+            AddBreakpoint = function(_, breakpoint)
+                installedBreakpoints[#installedBreakpoints + 1] = breakpoint
+            end,
+        }
+        local namespace = {
+            AuraDisplay = {
+                GetDurationBreakpoints = function()
+                    return expectedBreakpoints
+                end,
+            },
+            Config = {},
+            CombatState = {},
+            FrameLayout = {},
+            Rules = {},
+        }
+        local runtime = LoadAddonFile("Runtime.lua", namespace)
+
+        -- When
+        local result = runtime:CreateAuraTimeFormatter(function()
+            return formatter
+        end)
+
+        -- Then
+        ExpectEqual(result, formatter)
+        ExpectEqual(installedBreakpoints[1], expectedBreakpoints[1])
+        ExpectEqual(installedBreakpoints[2], expectedBreakpoints[2])
+        ExpectEqual(installedBreakpoints[3], expectedBreakpoints[3])
+    end)
+
     It("resizes only the targeted health section", function()
         -- Given
         local healthSectionHeight

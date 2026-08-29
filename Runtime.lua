@@ -2078,6 +2078,19 @@ function Runtime:GetEventRegistrationPlan(hasNativeAuras)
     }
 end
 
+function Runtime:CreateAuraTimeFormatter(createFormatter)
+    createFormatter = createFormatter or
+        C_StringUtil.CreateNumericRuleFormatter
+
+    local formatter = createFormatter()
+
+    for _, breakpoint in ipairs(AuraDisplay:GetDurationBreakpoints()) do
+        formatter:AddBreakpoint(breakpoint)
+    end
+
+    return formatter
+end
+
 function Runtime:Enable()
     if self.frame then
         return
@@ -2091,10 +2104,7 @@ function Runtime:Enable()
     self.castTimeFormatter:AddBreakpoint(
         CastDuration:GetTimeBreakpoint()
     )
-    self.auraTimeFormatter = C_StringUtil.CreateNumericRuleFormatter()
-    self.auraTimeFormatter:AddBreakpoint(
-        AuraDisplay:GetDurationBreakpoint()
-    )
+    self.auraTimeFormatter = self:CreateAuraTimeFormatter()
     self.frame = CreateFrame("Frame")
     self.frame:SetScript("OnEvent", function(_, event, ...)
         self:OnEvent(event, ...)

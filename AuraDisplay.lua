@@ -18,6 +18,7 @@ local IMPORTANT_BUFF_LEFT_ADJUSTMENT = 10
 local IMPORTANT_BUFF_ICON_SCALE = 1
 local PURGEABLE_BUFF_FILTER = "HELPFUL|RAID_PLAYER_DISPELLABLE"
 local CROWD_CONTROL_FILTER = "HARMFUL|CROWD_CONTROL"
+local ROUND_DOWN = 2
 
 local IMPORTANT_BUFF_FILTERS = {
     "HELPFUL|BIG_DEFENSIVE|!RAID_PLAYER_DISPELLABLE",
@@ -167,11 +168,41 @@ function AuraDisplay:GetExcludedSpellIDs()
     return EXCLUDED_SPELL_IDS
 end
 
-function AuraDisplay:GetDurationBreakpoint()
+function AuraDisplay:GetDurationBreakpoints()
     return {
-        threshold = 0,
-        step = 1,
-        format = "%d",
+        {
+            threshold = 0,
+            step = 1,
+            rounding = ROUND_DOWN,
+            format = "%d",
+        },
+        {
+            threshold = 60,
+            format = "%d:%02d",
+            components = {
+                {
+                    div = 60,
+                    step = 1,
+                    rounding = ROUND_DOWN,
+                },
+                {
+                    mod = 60,
+                    step = 1,
+                    rounding = ROUND_DOWN,
+                },
+            },
+        },
+        {
+            threshold = 3600,
+            format = "%dh",
+            components = {
+                {
+                    div = 3600,
+                    step = 1,
+                    rounding = ROUND_DOWN,
+                },
+            },
+        },
     }
 end
 

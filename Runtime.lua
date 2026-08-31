@@ -894,12 +894,52 @@ local function initializePurgeableBuffButton(auraButton)
     )
 end
 
+function Runtime:BuildAuraGroupOptions(
+    group,
+    expirationSort,
+    normalDirection,
+    reverseDirection,
+    defaultInitializer,
+    defaultIconSize,
+    defaultIconSpacing
+)
+    local options = AuraDisplay:GetGroupOptions({
+        iconSize = group.iconSize or defaultIconSize or
+            Config.auraIconSize,
+        iconSpacing = group.iconSpacing or defaultIconSpacing or
+            Config.auraIconSpacing,
+        maxCount = group.maxFrameCount or Config.auraMaxCount,
+    })
+
+    if group.candidateFilters then
+        options.candidateFilters = group.candidateFilters
+    elseif not group.excludeSpellIDs then
+        options.candidateFilters = nil
+    end
+
+    options.sortMethod = expirationSort or
+        AuraContainerSortMethod.Expiration
+    normalDirection = normalDirection or
+        AuraContainerSortDirection.Normal
+    reverseDirection = reverseDirection or
+        AuraContainerSortDirection.Reverse
+    options.sortDirection = group.keepLongest and
+        reverseDirection or normalDirection
+    options.initializeFrame = group.initializeFrame or
+        defaultInitializer or initializeAuraButton
+
+    return options
+end
+
 local function createNativeAuraContainer(
     layer,
     anchor,
     unit,
     groups,
-    maximumLineSize
+    maximumLineSize,
+    defaultInitializer,
+    defaultIconSize,
+    defaultIconSpacing
 )
     local container = CreateFrame(
         "AuraContainer",
@@ -919,19 +959,15 @@ local function createNativeAuraContainer(
     )
 
     for _, group in ipairs(groups) do
-        local options = AuraDisplay:GetGroupOptions({
-            iconSize = group.iconSize or Config.auraIconSize,
-            iconSpacing = group.iconSpacing or Config.auraIconSpacing,
-            maxCount = Config.auraMaxCount,
-        })
-
-        if not group.excludeSpellIDs then
-            options.candidateFilters = nil
-        end
-        options.sortMethod = AuraContainerSortMethod.Expiration
-        options.sortDirection = AuraContainerSortDirection.Normal
-        options.initializeFrame =
-            group.initializeFrame or initializeAuraButton
+        local options = Runtime:BuildAuraGroupOptions(
+            group,
+            nil,
+            nil,
+            nil,
+            defaultInitializer,
+            defaultIconSize,
+            defaultIconSpacing
+        )
 
         container:AddAuraGroup(group.key, group.filter, options)
         container:SetAuraGroupLayout(group.key, options.layout)
@@ -974,15 +1010,11 @@ local function createNativeAuraContainers(view, unit)
         view.auraLayer,
         view.auraAnchor,
         unit,
-        {{
-            key = "playerDebuffs",
-            filter = AuraDisplay:GetFilter(),
-            excludeSpellIDs = true,
-            iconSize = debuffLayout.iconSize,
-            iconSpacing = debuffLayout.iconSpacing,
-            initializeFrame = initializeDebuffButton,
-        }},
-        debuffOptions.layout.maximumLineSize
+        AuraDisplay:GetPlayerDebuffGroups(),
+        debuffOptions.layout.maximumLineSize,
+        initializeDebuffButton,
+        debuffLayout.iconSize,
+        debuffLayout.iconSpacing
     )
 
     local importantBuffIconSize =
@@ -994,13 +1026,16 @@ local function createNativeAuraContainers(view, unit)
 
         if group.key == "purgeableBuffs" then
             initializeFrame = initializePurgeableBuffButton
-        elseif group.key == "crowdControl" then
+        elseif group.crowdControl then
             initializeFrame = initializeCrowdControlButton
         end
 
         rightAuraGroups[index] = {
             key = group.key,
             filter = group.filter,
+            candidateFilters = group.candidateFilters,
+            maxFrameCount = group.maxFrameCount,
+            keepLongest = group.keepLongest,
             iconSize = importantBuffIconSize,
             initializeFrame = initializeFrame,
         }

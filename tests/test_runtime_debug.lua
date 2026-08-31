@@ -178,6 +178,62 @@ Describe("Runtime diagnostics", function()
         ExpectEqual(installedBreakpoints[3], expectedBreakpoints[3])
     end)
 
+    It("keeps the longest aura in a capped duplicate group", function()
+        -- Given
+        local candidateFilters = {
+            includeSpellIDs = {[55078] = true},
+        }
+        local initializer = function() end
+        local receivedConfig
+        local namespace = {
+            AuraDisplay = {
+                GetGroupOptions = function(_, config)
+                    receivedConfig = config
+
+                    return {
+                        candidateFilters = {excludeSpellIDs = {}},
+                        layout = {},
+                        maxFrameCount = config.maxCount,
+                    }
+                end,
+            },
+            Config = {
+                auraIconSize = 18,
+                auraIconSpacing = 2,
+                auraMaxCount = 5,
+            },
+            CombatState = {},
+            FrameLayout = {},
+            Rules = {},
+        }
+        local runtime = LoadAddonFile("Runtime.lua", namespace)
+
+        -- When
+        local options = runtime:BuildAuraGroupOptions(
+            {
+                candidateFilters = candidateFilters,
+                initializeFrame = initializer,
+                keepLongest = true,
+                maxFrameCount = 1,
+            },
+            "expiration",
+            "normal",
+            "reverse",
+            nil,
+            9,
+            1
+        )
+
+        -- Then
+        ExpectEqual(options.candidateFilters, candidateFilters)
+        ExpectEqual(options.initializeFrame, initializer)
+        ExpectEqual(options.maxFrameCount, 1)
+        ExpectEqual(options.sortMethod, "expiration")
+        ExpectEqual(options.sortDirection, "reverse")
+        ExpectEqual(receivedConfig.iconSize, 9)
+        ExpectEqual(receivedConfig.iconSpacing, 1)
+    end)
+
     It("resizes only the targeted health section", function()
         -- Given
         local healthSectionHeight

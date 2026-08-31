@@ -131,8 +131,8 @@ Describe("Player debuff display", function()
             groups[1].filter,
             "HELPFUL|RAID_PLAYER_DISPELLABLE"
         )
-        ExpectEqual(groups[2].key, "crowdControl")
-        ExpectEqual(#groups, 5)
+        ExpectEqual(groups[3].key, "crowdControl")
+        ExpectEqual(#groups, 6)
     end)
 
     It("places important enemy buffs beyond the target arrow width", function()
@@ -225,7 +225,7 @@ Describe("Player debuff display", function()
         })
 
         -- Then
-        ExpectEqual(maximumLineSize, 500)
+        ExpectEqual(maximumLineSize, 600)
     end)
 
     It("formats aura durations as seconds minutes and hours", function()
@@ -387,5 +387,51 @@ Describe("Player debuff display", function()
 
         -- Then
         ExpectEqual(excludedSpellIDs[430589], true)
+    end)
+
+    It("defines one longest-duration icon for duplicate DK debuffs", function()
+        -- Given
+        local namespace = {}
+        local auraDisplay = LoadAddonFile("AuraDisplay.lua", namespace)
+
+        -- When
+        local groups = auraDisplay:GetPlayerDebuffGroups()
+        local excludedSpellIDs = auraDisplay:GetExcludedSpellIDs()
+
+        -- Then
+        ExpectEqual(groups[1].key, "deduplicatedPlayerDebuff55078")
+        ExpectEqual(groups[1].candidateFilters.includeSpellIDs[55078], true)
+        ExpectEqual(groups[1].maxFrameCount, 1)
+        ExpectEqual(groups[1].keepLongest, true)
+        ExpectEqual(groups[2].key, "deduplicatedPlayerDebuff206930")
+        ExpectEqual(groups[2].candidateFilters.includeSpellIDs[206930], true)
+        ExpectEqual(groups[2].candidateFilters.includeSpellIDs[228645], true)
+        ExpectEqual(groups[2].maxFrameCount, 1)
+        ExpectEqual(groups[2].keepLongest, true)
+        ExpectEqual(groups[3].key, "playerDebuffs")
+        ExpectEqual(groups[3].excludeSpellIDs, true)
+        ExpectEqual(excludedSpellIDs[55078], true)
+        ExpectEqual(excludedSpellIDs[206930], true)
+        ExpectEqual(excludedSpellIDs[228645], true)
+    end)
+
+    It("deduplicates Heart Strike inside the crowd-control row", function()
+        -- Given
+        local namespace = {}
+        local auraDisplay = LoadAddonFile("AuraDisplay.lua", namespace)
+
+        -- When
+        local groups = auraDisplay:GetRightAuraGroups()
+
+        -- Then
+        ExpectEqual(groups[2].key, "deduplicatedHeartStrike")
+        ExpectEqual(groups[2].candidateFilters.includeSpellIDs[206930], true)
+        ExpectEqual(groups[2].candidateFilters.includeSpellIDs[228645], true)
+        ExpectEqual(groups[2].maxFrameCount, 1)
+        ExpectEqual(groups[2].keepLongest, true)
+        ExpectEqual(groups[2].crowdControl, true)
+        ExpectEqual(groups[3].key, "crowdControl")
+        ExpectEqual(groups[3].candidateFilters.excludeSpellIDs[206930], true)
+        ExpectEqual(groups[3].candidateFilters.excludeSpellIDs[228645], true)
     end)
 end)

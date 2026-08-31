@@ -18,7 +18,13 @@ local IMPORTANT_BUFF_LEFT_ADJUSTMENT = 10
 local IMPORTANT_BUFF_ICON_SCALE = 1
 local PURGEABLE_BUFF_FILTER = "HELPFUL|RAID_PLAYER_DISPELLABLE"
 local CROWD_CONTROL_FILTER = "HARMFUL|CROWD_CONTROL"
+local PLAYER_DEBUFF_FILTER = "HARMFUL|PLAYER|!CROWD_CONTROL"
 local ROUND_DOWN = 2
+
+local HEART_STRIKE_SPELL_IDS = {
+    [206930] = true,
+    [228645] = true,
+}
 
 local IMPORTANT_BUFF_FILTERS = {
     "HELPFUL|BIG_DEFENSIVE|!RAID_PLAYER_DISPELLABLE",
@@ -34,8 +40,22 @@ local RIGHT_AURA_GROUPS = {
         filter = PURGEABLE_BUFF_FILTER,
     },
     {
+        key = "deduplicatedHeartStrike",
+        filter = CROWD_CONTROL_FILTER,
+        candidateFilters = {
+            includeSpellIDs = HEART_STRIKE_SPELL_IDS,
+        },
+        maxFrameCount = 1,
+        keepLongest = true,
+        crowdControl = true,
+    },
+    {
         key = "crowdControl",
         filter = CROWD_CONTROL_FILTER,
+        candidateFilters = {
+            excludeSpellIDs = HEART_STRIKE_SPELL_IDS,
+        },
+        crowdControl = true,
     },
     {
         key = "importantBuff1",
@@ -58,10 +78,46 @@ local EXCLUDED_SPELL_IDS = {
     [1287555] = true,
     [1287663] = true,
     [1287665] = true,
+    [55078] = true,
+    [206930] = true,
+    [228645] = true,
+}
+
+local PLAYER_DEBUFF_GROUPS = {
+    {
+        key = "deduplicatedPlayerDebuff55078",
+        filter = PLAYER_DEBUFF_FILTER,
+        candidateFilters = {
+            includeSpellIDs = {[55078] = true},
+        },
+        maxFrameCount = 1,
+        keepLongest = true,
+    },
+    {
+        key = "deduplicatedPlayerDebuff206930",
+        filter = PLAYER_DEBUFF_FILTER,
+        candidateFilters = {
+            includeSpellIDs = {
+                [206930] = true,
+                [228645] = true,
+            },
+        },
+        maxFrameCount = 1,
+        keepLongest = true,
+    },
+    {
+        key = "playerDebuffs",
+        filter = PLAYER_DEBUFF_FILTER,
+        excludeSpellIDs = true,
+    },
 }
 
 function AuraDisplay:GetFilter()
-    return "HARMFUL|PLAYER|!CROWD_CONTROL"
+    return PLAYER_DEBUFF_FILTER
+end
+
+function AuraDisplay:GetPlayerDebuffGroups()
+    return PLAYER_DEBUFF_GROUPS
 end
 
 function AuraDisplay:GetCrowdControlFilter()

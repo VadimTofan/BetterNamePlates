@@ -64,6 +64,7 @@ assert.ok(
 
 const runtime = readRepositoryFile("Runtime.lua");
 const interrupts = readRepositoryFile("Interrupts.lua");
+const kickTracker = readRepositoryFile("KickTracker.lua");
 const config = readRepositoryFile("Config.lua");
 const auraDisplay = readRepositoryFile("AuraDisplay.lua");
 const readme = readRepositoryFile("README.md");
@@ -90,12 +91,12 @@ const expresswayOutlineUses =
 
 assert.equal(
   castFontUses.length,
-  2,
-  "cast spell names and timers must use castFont",
+  3,
+  "cast spell names, targets, and timers must use castFont",
 );
 assert.equal(
   expresswayOutlineUses.length,
-  4,
+  5,
   "health and cast text must use the shared Expressway outline flag",
 );
 assert.match(
@@ -103,15 +104,77 @@ assert.match(
   /createSelectionBorder\(\s*view\.healthForeground,\s*Config\.hoverBorderThickness\s*\)/,
   "hover borders must use their independent thickness",
 );
-assert.doesNotMatch(
+assert.match(
   runtime,
-  /ShowInterruptSource|EnsureInterruptSourceTextures|interruptSourceIcon/,
-  "Runtime must not retain interrupter-attribution rendering",
+  /HandleKickCastEvent|ShowKickIndicator/,
+  "Runtime must render secret-safe kick indicators",
 );
-assert.doesNotMatch(
+assert.match(
   runtime,
-  /Interrupts:IsSourceEvent|UNIT_SPELLCAST_EMPOWER_STOP/,
-  "Runtime must not retain interrupter-attribution events",
+  /castTarget:SetPoint\(\s*"RIGHT",\s*view\.castTime,\s*"LEFT",\s*-Config\.castTargetTimerGap,\s*0\s*\)/,
+  "spell target names must end immediately before the cast timer",
+);
+assert.match(
+  runtime,
+  /castTarget:SetJustifyH\("RIGHT"\)/,
+  "spell target names must be right aligned",
+);
+assert.match(
+  runtime,
+  /castTarget:SetWidth\(\s*Config\.castFontSize\s*\*\s*Config\.castTargetMaxCharacters\s*\*\s*0\.6\s*\)/,
+  "spell target names must be clipped to approximately ten characters",
+);
+assert.match(
+  runtime,
+  /event\s*==\s*"UNIT_THREAT_LIST_UPDATE"[\s\S]*?self:UpdateHealth\(unit,\s*true,\s*false\)/,
+  "threat-list updates must refresh the affected plate appearance",
+);
+assert.match(
+  config,
+  /castTargetMaxCharacters\s*=\s*10/,
+  "spell target name width must allow approximately ten characters",
+);
+assert.match(
+  config,
+  /interruptedCastHoldDuration\s*=\s*0\.5/,
+  "interrupted casts must remain visible for half a second",
+);
+assert.match(
+  config,
+  /interruptedCast\s*=\s*\{\s*1,\s*0,\s*0,\s*1\s*\}/,
+  "interrupted castbars must use bright red",
+);
+assert.match(
+  runtime,
+  /ShowInterruptedCast[\s\S]*?C_Timer\.NewTimer/,
+  "interrupted castbars must use a one-shot timer instead of polling",
+);
+assert.match(
+  runtime,
+  /UpdateCastTarget\([\s\S]*?UnitSpellTargetName/,
+  "cast target names must use Blizzard's dedicated target-name API",
+);
+assert.match(
+  runtime,
+  /UnitSpellTargetClass[\s\S]*?GetClassColor/,
+  "spell target names must use Blizzard's secret-safe class color path",
+);
+const kickIndicatorFactory = runtime.match(
+  /local function createKickIndicator[\s\S]*?\nend/,
+)?.[0] ?? "";
+assert.match(
+  kickIndicatorFactory,
+  /SetHideCountdownNumbers\(true\)/,
+  "kick indicators must hide cooldown countdown text",
+);
+assert.ok(
+  manifest.indexOf("KickTracker.lua") < manifest.indexOf("Runtime.lua"),
+  "manifest must load KickTracker before Runtime",
+);
+assert.match(
+  kickTracker,
+  /GetInterrupter|ResolveInterruptSpellID|InferAllyInterrupt/,
+  "KickTracker must isolate secret-safe attribution policy",
 );
 assert.doesNotMatch(
   runtime,
@@ -139,4 +202,4 @@ console.log("PASS applies the configured health font to every health text layer"
 console.log("PASS applies the configured cast font to spell names and timers");
 console.log("PASS outlines every Runtime Expressway text layer");
 console.log("PASS uses the independent hover-border thickness");
-console.log("PASS excludes deferred interrupter-attribution UI");
+console.log("PASS includes secret-safe kick attribution UI");

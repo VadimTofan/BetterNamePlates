@@ -32,6 +32,7 @@ end
 dofile("tests/test_core.lua")
 dofile("tests/test_combat_state.lua")
 dofile("tests/test_interrupts.lua")
+dofile("tests/test_kick_tracker.lua")
 dofile("tests/test_cast_duration.lua")
 dofile("tests/test_aura_display.lua")
 dofile("tests/test_nameplate_stacking.lua")

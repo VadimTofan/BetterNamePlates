@@ -51,6 +51,7 @@ Describe("Runtime diagnostics", function()
             markerInterruptible = true,
             cast = {Hide = function() hidden.cast = true end},
             castIconFrame = {Hide = function() hidden.icon = true end},
+            castTarget = {SetText = function() hidden.target = true end},
             interruptMarkerFrame = {
                 Hide = function() hidden.marker = true end,
             },
@@ -76,6 +77,7 @@ Describe("Runtime diagnostics", function()
         ExpectEqual(view.markerInterruptible, nil)
         ExpectEqual(hidden.cast, true)
         ExpectEqual(hidden.icon, true)
+        ExpectEqual(hidden.target, true)
         ExpectEqual(hidden.marker, true)
     end)
 
@@ -140,6 +142,19 @@ Describe("Runtime diagnostics", function()
             nativePlan.playerEvents.UNIT_SPELLCAST_SUCCEEDED,
             true
         )
+        ExpectEqual(contains(nativePlan.events, "GROUP_ROSTER_UPDATE"), true)
+        ExpectEqual(
+            contains(nativePlan.events, "UNIT_THREAT_LIST_UPDATE"),
+            true
+        )
+        ExpectEqual(
+            contains(nativePlan.events, "UNIT_SPELLCAST_EMPOWER_START"),
+            true
+        )
+        ExpectEqual(
+            contains(nativePlan.events, "UNIT_SPELLCAST_EMPOWER_STOP"),
+            true
+        )
     end)
 
     It("installs every aura duration formatting breakpoint", function()
@@ -176,6 +191,380 @@ Describe("Runtime diagnostics", function()
         ExpectEqual(installedBreakpoints[1], expectedBreakpoints[1])
         ExpectEqual(installedBreakpoints[2], expectedBreakpoints[2])
         ExpectEqual(installedBreakpoints[3], expectedBreakpoints[3])
+    end)
+
+    It("shows one kick icon for each interrupted cast", function()
+        -- Given
+        local tracker = LoadAddonFile("KickTracker.lua", {})
+        local namespace = {
+            Config = {},
+            CombatState = {},
+            FrameLayout = {},
+            KickTracker = tracker,
+            Rules = {},
+        }
+        local runtime = LoadAddonFile("Runtime.lua", namespace)
+        local view = {}
+        local shownSpellIDs = {}
+
+        runtime.activePlates = {nameplate1 = view}
+        runtime.pendingPlayerKick = {spellID = 47528, time = 10}
+        runtime.allyInterruptSpellID = 6552
+        runtime.ShowKickIndicator = function(_, _, spellID)
+            shownSpellIDs[#shownSpellIDs + 1] = spellID
+        end
+
+        -- When
+        runtime:HandleKickCastEvent(
+            "UNIT_SPELLCAST_START",
+            "nameplate1",
+            100,
+            nil,
+            nil,
+            10
+        )
+        local handled = runtime:HandleKickCastEvent(
+            "UNIT_SPELLCAST_INTERRUPTED",
+            "nameplate1",
+            100,
+            {},
+            nil,
+            10.1
+        )
+        runtime:HandleKickCastEvent(
+            "UNIT_SPELLCAST_CHANNEL_STOP",
+            "nameplate1",
+            100,
+            {},
+            nil,
+            10.1
+        )
+
+        -- Then
+        ExpectEqual(#shownSpellIDs, 1)
+        ExpectEqual(shownSpellIDs[1], 47528)
+        ExpectEqual(view.kickRecordedForCast, true)
+        ExpectEqual(handled, true)
+    end)
+
+    It("holds an interrupted castbar for the configured duration", function()
+        -- Given
+        local namespace = {
+            Config = {
+                interruptedCastText = "Interrupted",
+                interruptedCastHoldDuration = 0.5,
+                colors = {interruptedCast = {1, 0, 0, 1}},
+            },
+            CombatState = {},
+            FrameLayout = {},
+            Rules = {},
+        }
+        local runtime = LoadAddonFile("Runtime.lua", namespace)
+        local displayedText
+        local timerDelay
+        local expiryCallback
+        local castShown = false
+        local castHidden = false
+        local castColor
+        local view = {
+            cast = {
+                Show = function() castShown = true end,
+                Hide = function() castHidden = true end,
+                SetStatusBarColor = function(_, red, green, blue, alpha)
+                    castColor = {red, green, blue, alpha}
+                end,
+            },
+            castIconFrame = {Hide = function() end},
+            castText = {
+                SetText = function(_, text) displayedText = text end,
+            },
+            castTarget = {SetText = function() end},
+            castTime = {Hide = function() end, Show = function() end},
+            interruptMarkerFrame = {Hide = function() end},
+        }
+
+        -- When
+        runtime:ShowInterruptedCast(
+            "nameplate1",
+            view,
+            function(delay, callback)
+                timerDelay = delay
+                expiryCallback = callback
+                return {Cancel = function() end}
+            end
+        )
+
+        -- Then
+        ExpectEqual(displayedText, "Interrupted")
+        ExpectEqual(timerDelay, 0.5)
+        ExpectEqual(castShown, true)
+        ExpectEqual(castHidden, false)
+        ExpectEqual(castColor[1], 1)
+        ExpectEqual(castColor[2], 0)
+        ExpectEqual(castColor[3], 0)
+        ExpectEqual(castColor[4], 1)
+
+        expiryCallback()
+        ExpectEqual(castHidden, true)
+        ExpectEqual(view.interruptedCastTimer, nil)
+    end)
+
+    It("prevents an old interruption timer from hiding a newer cast", function()
+        -- Given
+        local namespace = {
+            Config = {
+                interruptedCastText = "Interrupted",
+                interruptedCastHoldDuration = 0.5,
+                colors = {interruptedCast = {1, 0, 0, 1}},
+            },
+            CombatState = {},
+            FrameLayout = {},
+            Rules = {},
+        }
+        local runtime = LoadAddonFile("Runtime.lua", namespace)
+        local firstCallback
+        local firstCancelled = false
+        local castHidden = false
+        local view = {
+            cast = {
+                Show = function() end,
+                Hide = function() castHidden = true end,
+                SetStatusBarColor = function() end,
+            },
+            castIconFrame = {Hide = function() end},
+            castText = {SetText = function() end},
+            castTarget = {SetText = function() end},
+            castTime = {Hide = function() end, Show = function() end},
+            interruptMarkerFrame = {Hide = function() end},
+        }
+
+        runtime:ShowInterruptedCast(
+            "nameplate1",
+            view,
+            function(_, callback)
+                firstCallback = callback
+                return {
+                    Cancel = function() firstCancelled = true end,
+                }
+            end
+        )
+
+        -- When
+        runtime:CancelInterruptedCast(view)
+        firstCallback()
+
+        -- Then
+        ExpectEqual(firstCancelled, true)
+        ExpectEqual(castHidden, false)
+        ExpectEqual(view.interruptedCastTimer, nil)
+    end)
+
+    It("renders and expires a kick indicator", function()
+        -- Given
+        local hidden = false
+        local shown = false
+        local texture
+        local cooldownStart
+        local cooldownDuration
+        local previousCancelled = false
+        local expiryCallback
+        local newTimer = {}
+        local namespace = {
+            Config = {},
+            CombatState = {},
+            FrameLayout = {},
+            Rules = {},
+        }
+        local runtime = LoadAddonFile("Runtime.lua", namespace)
+        local view = {
+            kickTimer = {
+                Cancel = function()
+                    previousCancelled = true
+                end,
+            },
+            kickIndicator = {
+                Hide = function()
+                    hidden = true
+                end,
+                Show = function()
+                    shown = true
+                end,
+            },
+            kickIcon = {
+                SetTexture = function(_, value)
+                    texture = value
+                end,
+            },
+            kickCooldown = {
+                SetCooldown = function(_, startTime, duration)
+                    cooldownStart = startTime
+                    cooldownDuration = duration
+                end,
+            },
+        }
+
+        -- When
+        runtime:ShowKickIndicator(
+            view,
+            2139,
+            10,
+            6,
+            function(spellID)
+                return "texture:" .. spellID
+            end,
+            function(_, callback)
+                expiryCallback = callback
+                return newTimer
+            end
+        )
+        expiryCallback()
+
+        -- Then
+        ExpectEqual(previousCancelled, true)
+        ExpectEqual(texture, "texture:2139")
+        ExpectEqual(cooldownStart, 10)
+        ExpectEqual(cooldownDuration, 6)
+        ExpectEqual(shown, true)
+        ExpectEqual(hidden, true)
+        ExpectEqual(view.kickTimer, nil)
+    end)
+
+    It("passes opaque spell target names directly to cast text", function()
+        -- Given
+        local namespace = {
+            Config = {},
+            CombatState = {},
+            FrameLayout = {},
+            Rules = {},
+        }
+        local runtime = LoadAddonFile("Runtime.lua", namespace)
+        local opaqueName = {}
+        local opaqueClass = {}
+        local displayedName
+        local receivedClass
+        local displayedColor
+        local view = {
+            castTarget = {
+                SetText = function(_, value)
+                    displayedName = value
+                end,
+                SetTextColor = function(_, red, green, blue)
+                    displayedColor = {red, green, blue}
+                end,
+            },
+        }
+
+        -- When
+        runtime:UpdateCastTarget(
+            "nameplate1",
+            view,
+            function()
+                return true
+            end,
+            function()
+                return opaqueName
+            end,
+            function()
+                return opaqueClass
+            end,
+            function(classToken)
+                receivedClass = classToken
+                return 0.2, 0.4, 0.8
+            end,
+            function()
+                return true
+            end
+        )
+
+        -- Then
+        ExpectEqual(displayedName, opaqueName)
+        ExpectEqual(receivedClass, opaqueClass)
+        ExpectEqual(displayedColor[1], 0.2)
+        ExpectEqual(displayedColor[2], 0.4)
+        ExpectEqual(displayedColor[3], 0.8)
+    end)
+
+    It("keeps secret spell target classes white", function()
+        -- Given
+        local namespace = {
+            Config = {},
+            CombatState = {},
+            FrameLayout = {},
+            Rules = {},
+        }
+        local runtime = LoadAddonFile("Runtime.lua", namespace)
+        local opaqueClass = {}
+        local displayedColor
+        local view = {
+            castTarget = {
+                SetText = function()
+                end,
+                SetTextColor = function(_, red, green, blue)
+                    displayedColor = {red, green, blue}
+                end,
+            },
+        }
+
+        -- When
+        runtime:UpdateCastTarget(
+            "nameplate1",
+            view,
+            function()
+                return true
+            end,
+            function()
+                return "target"
+            end,
+            function()
+                return opaqueClass
+            end,
+            function()
+                error("secret class tokens must not reach GetClassColor")
+            end,
+            function(value)
+                ExpectEqual(value, opaqueClass)
+                return false
+            end
+        )
+
+        -- Then
+        ExpectEqual(displayedColor[1], 1)
+        ExpectEqual(displayedColor[2], 1)
+        ExpectEqual(displayedColor[3], 1)
+    end)
+
+    It("clears cast target text when Blizzard hides the target", function()
+        -- Given
+        local namespace = {
+            Config = {},
+            CombatState = {},
+            FrameLayout = {},
+            Rules = {},
+        }
+        local runtime = LoadAddonFile("Runtime.lua", namespace)
+        local displayedName = "old target"
+        local view = {
+            castTarget = {
+                SetText = function(_, value)
+                    displayedName = value
+                end,
+            },
+        }
+
+        -- When
+        runtime:UpdateCastTarget(
+            "nameplate1",
+            view,
+            function()
+                return false
+            end,
+            function()
+                error("hidden targets must not be queried")
+            end
+        )
+
+        -- Then
+        ExpectEqual(displayedName, nil)
     end)
 
     It("keeps the longest aura in a capped duplicate group", function()
@@ -632,6 +1021,49 @@ Describe("Runtime diagnostics", function()
         -- Then
         ExpectEqual(resized.nameplate1, true)
         ExpectEqual(resized.nameplate2, true)
+    end)
+
+    It("applies the configured name size to every active name layer", function()
+        -- Given
+        local fontSizes = {}
+        local heights = {}
+        local namespace = {
+            Config = {
+                nameFont = "Expressway.ttf",
+                nameFontFlags = "",
+                nameFontSize = 13,
+            },
+            CombatState = {},
+            FrameLayout = {},
+            Rules = {},
+        }
+        local runtime = LoadAddonFile("Runtime.lua", namespace)
+        local view = {
+            nameLayers = {
+                {
+                    SetFont = function(_, _, size)
+                        fontSizes[#fontSizes + 1] = size
+                    end,
+                    SetHeight = function(_, height)
+                        heights[#heights + 1] = height
+                    end,
+                    SetWidth = function()
+                    end,
+                },
+            },
+        }
+
+        runtime.ResizePlate = function(self, _, activeView)
+            self:ApplyNameSize(activeView)
+        end
+        runtime.activePlates = {nameplate1 = view}
+
+        -- When
+        runtime:ApplyDimensions()
+
+        -- Then
+        ExpectEqual(fontSizes[1], 13)
+        ExpectEqual(heights[1], 13)
     end)
 
     It("runs the update driver only while nameplates are active", function()

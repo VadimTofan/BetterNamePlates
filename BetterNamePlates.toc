@@ -21,6 +21,7 @@ FriendlyNameStyle.lua
 FrameLayout.lua
 CombatState.lua
 Interrupts.lua
+KickTracker.lua
 CastDuration.lua
 AuraDisplay.lua
 NameplateStacking.lua

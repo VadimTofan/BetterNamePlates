@@ -10,6 +10,7 @@ local FriendlyNameStyle = namespace.FriendlyNameStyle
 local FrameLayout = namespace.FrameLayout
 local HealthFormat = namespace.HealthFormat
 local Interrupts = namespace.Interrupts
+local KickTracker = namespace.KickTracker
 local NameplateStacking = namespace.NameplateStacking
 local NpcClassification = namespace.NpcClassification
 local RaidTargetIndicator = namespace.RaidTargetIndicator
@@ -21,6 +22,10 @@ local Runtime = {
     castingPlates = {},
     friendlyPlates = {},
 }
+local KICK_BORDER_COLOR = {1, 0.2, 0.2, 1}
+local canAccessValue = canaccessvalue or function()
+    return true
+end
 
 function Runtime:AdvanceRefreshClock(current, elapsed, interval)
     local accumulated = (current or 0) + elapsed
@@ -199,6 +204,37 @@ local function createAuraLayer(healthBar, anchor, frameStrata, frameLevel)
     )
 
     return layer
+end
+
+local function createKickIndicator(layer)
+    local indicator = CreateFrame("Frame", nil, layer)
+
+    indicator:SetSize(Config.auraIconSize, Config.auraIconSize)
+    indicator:SetPoint("LEFT", layer, "LEFT")
+    indicator:SetFrameLevel(layer:GetFrameLevel() + 2)
+
+    local icon = indicator:CreateTexture(nil, "ARTWORK")
+
+    icon:SetAllPoints(indicator)
+
+    local cooldown = CreateFrame(
+        "Cooldown",
+        nil,
+        indicator,
+        "CooldownFrameTemplate"
+    )
+
+    cooldown:SetAllPoints(indicator)
+    cooldown:SetDrawEdge(false)
+    cooldown:SetDrawBling(false)
+    cooldown:SetHideCountdownNumbers(true)
+    cooldown:SetReverse(true)
+    cooldown:SetSwipeColor(0, 0, 0, 0.8)
+
+    createBorder(indicator, 1, KICK_BORDER_COLOR)
+    indicator:Hide()
+
+    return indicator, icon, cooldown
 end
 
 local function applyHealthLayerLevels(view)
@@ -596,6 +632,28 @@ local function createPlateView(basePlate)
         castTimeAnchor.y
     )
 
+    view.castTarget =
+        view.castForeground:CreateFontString(nil, "OVERLAY")
+    view.castTarget:SetFont(
+        Config.castFont,
+        Config.castFontSize,
+        Config.expresswayFontFlags
+    )
+    view.castTarget:SetPoint(
+        "RIGHT",
+        view.castTime,
+        "LEFT",
+        -Config.castTargetTimerGap,
+        0
+    )
+    view.castTarget:SetWidth(
+        Config.castFontSize * Config.castTargetMaxCharacters * 0.6
+    )
+    view.castTarget:SetJustifyH("RIGHT")
+    view.castTarget:SetWordWrap(false)
+    view.castTarget:SetMaxLines(1)
+    view.castTarget:SetTextColor(1, 1, 1, 1)
+
     view.castIconFrame = CreateFrame("Frame", nil, view)
     view.castIconFrame:SetSize(Config.castIconSize, Config.castIconSize)
     view.castIconFrame:SetPoint(
@@ -653,6 +711,8 @@ local function createPlateView(basePlate)
         view.healthForeground:GetFrameStrata(),
         view.healthForeground:GetFrameLevel() + 10
     )
+    view.kickIndicator, view.kickIcon, view.kickCooldown =
+        createKickIndicator(view.importantBuffLayer)
     view.auras = {}
 
     if not supportsNativeAuraContainers() then
@@ -725,6 +785,190 @@ function Runtime:PreparePlateView(view, unit, basePlate)
     view.cast:Hide()
     view.castIconFrame:Hide()
     view.interruptMarkerFrame:Hide()
+    view.castTarget:SetText(nil)
+    self:CancelInterruptedCast(view)
+    self:ClearKickIndicator(view)
+    view.kickRecordedForCast = false
+end
+
+function Runtime:UpdateCastTarget(
+    unit,
+    view,
+    shouldDisplayTargetName,
+    getTargetName,
+    getTargetClass,
+    getClassColor,
+    canAccessClass
+)
+    shouldDisplayTargetName = shouldDisplayTargetName or
+        UnitShouldDisplaySpellTargetName
+    getTargetName = getTargetName or UnitSpellTargetName
+    getTargetClass = getTargetClass or UnitSpellTargetClass
+    getClassColor = getClassColor or GetClassColor
+    canAccessClass = canAccessClass or canAccessValue
+
+    if not shouldDisplayTargetName(unit) then
+        view.castTarget:SetText(nil)
+        return
+    end
+
+    view.castTarget:SetText(getTargetName(unit))
+
+    local classFilename = getTargetClass(unit)
+
+    if not canAccessClass(classFilename) then
+        view.castTarget:SetTextColor(1, 1, 1, 1)
+        return
+    end
+
+    local red, green, blue = getClassColor(classFilename)
+
+    if red then
+        view.castTarget:SetTextColor(red, green, blue, 1)
+    else
+        view.castTarget:SetTextColor(1, 1, 1, 1)
+    end
+end
+
+function Runtime:ClearKickIndicator(view)
+    if view.kickTimer then
+        view.kickTimer:Cancel()
+        view.kickTimer = nil
+    end
+
+    if view.kickIndicator then
+        view.kickIndicator:Hide()
+    end
+end
+
+function Runtime:CancelInterruptedCast(view)
+    if not view.interruptedCastTimer then
+        return
+    end
+
+    view.interruptedCastTimer:Cancel()
+    view.interruptedCastTimer = nil
+end
+
+function Runtime:ShowInterruptedCast(unit, view, newTimer)
+    self:CancelInterruptedCast(view)
+    self:SetCastingPlate(unit, view, false)
+
+    view.castText:SetText(Config.interruptedCastText)
+    setStatusBarColor(view.cast, Config.colors.interruptedCast)
+    view.castTarget:SetText(nil)
+    if view.castTime then
+        view.castTime:Hide()
+    end
+    view.interruptMarkerFrame:Hide()
+    view.cast:Show()
+
+    newTimer = newTimer or C_Timer.NewTimer
+
+    local timer
+
+    timer = newTimer(Config.interruptedCastHoldDuration, function()
+        if view.interruptedCastTimer ~= timer then
+            return
+        end
+
+        view.interruptedCastTimer = nil
+        view.cast:Hide()
+        view.castIconFrame:Hide()
+    end)
+    view.interruptedCastTimer = timer
+end
+
+function Runtime:ShowKickIndicator(
+    view,
+    spellID,
+    startTime,
+    duration,
+    getTexture,
+    newTimer
+)
+    self:ClearKickIndicator(view)
+
+    getTexture = getTexture or C_Spell.GetSpellTexture
+    newTimer = newTimer or C_Timer.NewTimer
+
+    local genericSpellID = KickTracker and
+        KickTracker:GetGenericKickSpellID() or 1766
+    local texture = getTexture(spellID) or getTexture(genericSpellID)
+
+    view.kickIcon:SetTexture(texture)
+    view.kickCooldown:SetCooldown(startTime, duration)
+    view.kickIndicator:Show()
+
+    local timer
+
+    timer = newTimer(duration + 0.05, function()
+        if view.kickTimer ~= timer then
+            return
+        end
+
+        view.kickTimer = nil
+        view.kickIndicator:Hide()
+    end)
+    view.kickTimer = timer
+end
+
+function Runtime:HandleKickCastEvent(
+    event,
+    unit,
+    spellID,
+    standardInterrupter,
+    empowerInterrupter,
+    now
+)
+    local view = self.activePlates[unit]
+
+    if not view then
+        return false
+    end
+
+    if KickTracker:IsStartEvent(event) then
+        view.kickRecordedForCast = false
+        return false
+    end
+
+    local interruptedBy = KickTracker:GetInterrupter(
+        event,
+        standardInterrupter,
+        empowerInterrupter
+    )
+
+    if not KickTracker:ShouldShowInterrupt(
+        view.kickRecordedForCast,
+        interruptedBy
+    ) then
+        return false
+    end
+
+    view.kickRecordedForCast = true
+
+    local interruptSpellID = KickTracker:ResolveInterruptSpellID(
+        now,
+        self.pendingPlayerKick,
+        self.allyInterruptSpellID
+    )
+    local duration = KickTracker:GetLockoutDuration(interruptSpellID)
+
+    self:ShowKickIndicator(
+        view,
+        interruptSpellID,
+        now,
+        duration
+    )
+
+    return true
+end
+
+function Runtime:RefreshAllyInterrupt()
+    self.allyInterruptSpellID = KickTracker:InferAllyInterrupt(
+        UnitExists,
+        UnitClass
+    )
 end
 
 function Runtime:GetPlateIdentity(view, builder)
@@ -939,7 +1183,8 @@ local function createNativeAuraContainer(
     maximumLineSize,
     defaultInitializer,
     defaultIconSize,
-    defaultIconSpacing
+    defaultIconSpacing,
+    horizontalOffset
 )
     local container = CreateFrame(
         "AuraContainer",
@@ -954,7 +1199,7 @@ local function createNativeAuraContainer(
         anchor.itemPoint,
         layer,
         anchor.itemPoint,
-        0,
+        horizontalOffset or 0,
         0
     )
 
@@ -1052,7 +1297,11 @@ local function createNativeAuraContainers(view, unit)
         view.importantBuffAnchor,
         unit,
         rightAuraGroups,
-        AuraDisplay:GetRightAuraMaximumLineSize(importantBuffOptions)
+        AuraDisplay:GetRightAuraMaximumLineSize(importantBuffOptions),
+        nil,
+        nil,
+        nil,
+        Config.auraIconSize + Config.auraIconSpacing
     )
 end
 
@@ -1434,6 +1683,10 @@ function Runtime:UpdateCast(unit, event)
         return
     end
 
+    if event and KickTracker:IsStartEvent(event) then
+        self:CancelInterruptedCast(view)
+    end
+
     local name, _, textureID, _, _, _, _, notInterruptible =
         UnitCastingInfo(unit)
     local isChannel = false
@@ -1445,9 +1698,14 @@ function Runtime:UpdateCast(unit, event)
     end
 
     if not name then
+        if view.interruptedCastTimer then
+            return
+        end
+
         self:SetCastingPlate(unit, view, false)
         view.cast:Hide()
         view.castIconFrame:Hide()
+        view.castTarget:SetText(nil)
         view.interruptMarkerFrame:Hide()
         return
     end
@@ -1495,6 +1753,7 @@ function Runtime:UpdateCast(unit, event)
     )
 
     view.castText:SetText(name)
+    self:UpdateCastTarget(unit, view)
     view.castIcon:SetTexture(textureID)
     view.castIconFrame:Show()
     view.interruptCooldown = self:GetInterruptCooldown()
@@ -1527,6 +1786,11 @@ function Runtime:InstallBlizzardFrameSuppression(view, installHook)
 
     if not unitFrame or view.blizzardSuppressionHooked then
         return
+    end
+
+    self:CancelInterruptedCast(view)
+    if view.castTime then
+        view.castTime:Show()
     end
 
     local hook = installHook or hooksecurefunc
@@ -1800,9 +2064,22 @@ function Runtime:ResizePlate(unit, view)
         nameLayer:SetWidth(Config.healthWidth)
     end
 
+    self:ApplyNameSize(view)
+
     view.healthSectionHeight = nil
     self:UpdateSelectionIndicator(unit, view)
     NameplateStacking:ApplyBounds(view.basePlate, view)
+end
+
+function Runtime:ApplyNameSize(view)
+    for _, nameLayer in ipairs(view.nameLayers) do
+        nameLayer:SetFont(
+            Config.nameFont,
+            Config.nameFontSize,
+            Config.nameFontFlags
+        )
+        nameLayer:SetHeight(Config.nameFontSize)
+    end
 end
 
 function Runtime:ApplyDimensions()
@@ -1887,6 +2164,8 @@ function Runtime:RemovePlate(unit)
 
     view:Hide()
     self:SetCastingPlate(unit, view, false)
+    self:CancelInterruptedCast(view)
+    self:ClearKickIndicator(view)
 
     if view.auraContainer then
         view.auraContainer:SetEnabled(false)
@@ -1999,7 +2278,14 @@ function Runtime:InstallFriendlyOptionsHook()
     )
 end
 
-function Runtime:OnEvent(event, unit, _, spellID)
+function Runtime:OnEvent(
+    event,
+    unit,
+    _,
+    spellID,
+    standardInterrupter,
+    empowerInterrupter
+)
     if event == "PLAYER_LEAVING_WORLD" then
         self:ReleaseForLoadingScreen(function()
             collectgarbage("collect")
@@ -2034,7 +2320,8 @@ function Runtime:OnEvent(event, unit, _, spellID)
         if view then
             self:UpdateAbsorbValues(unit, view)
         end
-    elseif event == "UNIT_FACTION" or
+    elseif event == "UNIT_THREAT_LIST_UPDATE" or
+        event == "UNIT_FACTION" or
         event == "UNIT_THREAT_SITUATION_UPDATE" then
         self:UpdateHealth(unit, true, false)
     elseif event == "UNIT_AURA" then
@@ -2046,6 +2333,7 @@ function Runtime:OnEvent(event, unit, _, spellID)
         event == "TRAIT_CONFIG_UPDATED" or event == "SPELLS_CHANGED" then
         self:RefreshPlayerRole()
         self:RefreshInterruptSpell()
+        self:RefreshAllyInterrupt()
 
         for plateUnit in pairs(self.activePlates) do
             self:UpdateCast(plateUnit)
@@ -2057,13 +2345,32 @@ function Runtime:OnEvent(event, unit, _, spellID)
         self.interruptSpellID
     ) then
         self.interruptMarkerRefreshPending = true
+        self.pendingPlayerKick = {
+            spellID = spellID,
+            time = GetTime(),
+        }
+    elseif event == "GROUP_ROSTER_UPDATE" then
+        self:RefreshAllyInterrupt()
     elseif Interrupts:IsCooldownEvent(event) then
         local refreshMarkers = self.interruptMarkerRefreshPending
 
         self.interruptMarkerRefreshPending = false
         self:RefreshCastCooldowns(refreshMarkers)
     elseif event:find("UNIT_SPELLCAST", 1, true) == 1 then
-        self:UpdateCast(unit, event)
+        local wasInterrupted = self:HandleKickCastEvent(
+            event,
+            unit,
+            spellID,
+            standardInterrupter,
+            empowerInterrupter,
+            GetTime()
+        )
+
+        if wasInterrupted then
+            self:ShowInterruptedCast(unit, self.activePlates[unit])
+        else
+            self:UpdateCast(unit, event)
+        end
     elseif event == "PLAYER_TARGET_CHANGED" or
         event == "PLAYER_FOCUS_CHANGED" or
         event == "UPDATE_MOUSEOVER_UNIT" then
@@ -2087,15 +2394,19 @@ function Runtime:GetEventRegistrationPlan(hasNativeAuras)
         "SPELL_UPDATE_COOLDOWN",
         "TRAIT_CONFIG_UPDATED",
         "SPELLS_CHANGED",
+        "GROUP_ROSTER_UPDATE",
         "UNIT_HEALTH",
         "UNIT_MAXHEALTH",
         "UNIT_ABSORB_AMOUNT_CHANGED",
         "UNIT_FACTION",
+        "UNIT_THREAT_LIST_UPDATE",
         "UNIT_THREAT_SITUATION_UPDATE",
         "UNIT_SPELLCAST_START",
         "UNIT_SPELLCAST_STOP",
         "UNIT_SPELLCAST_CHANNEL_START",
         "UNIT_SPELLCAST_CHANNEL_STOP",
+        "UNIT_SPELLCAST_EMPOWER_START",
+        "UNIT_SPELLCAST_EMPOWER_STOP",
         "UNIT_SPELLCAST_INTERRUPTIBLE",
         "UNIT_SPELLCAST_INTERRUPTED",
         "UNIT_SPELLCAST_NOT_INTERRUPTIBLE",
@@ -2162,6 +2473,7 @@ function Runtime:Enable()
 
     self:RefreshPlayerRole()
     self:RefreshInterruptSpell()
+    self:RefreshAllyInterrupt()
     self:RefreshFriendlyPresentation(
         InCombatLockdown and InCombatLockdown()
     )
@@ -2189,6 +2501,8 @@ function Runtime:Disable()
     self.onUpdateHandler = nil
     self.interruptSpellID = nil
     self.interruptMarkerRefreshPending = nil
+    self.pendingPlayerKick = nil
+    self.allyInterruptSpellID = nil
     self.stackingPending = nil
     self.hoverRefreshElapsed = nil
     self.friendlyCVarPending = nil

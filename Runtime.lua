@@ -856,6 +856,12 @@ function Runtime:ShowInterruptedCast(unit, view, newTimer)
 
     view.castText:SetText(Config.interruptedCastText)
     setStatusBarColor(view.cast, Config.colors.interruptedCast)
+    view.castBackground:SetVertexColor(
+        Config.colors.interruptedCast[1],
+        Config.colors.interruptedCast[2],
+        Config.colors.interruptedCast[3],
+        Config.colors.interruptedCast[4]
+    )
     view.castTarget:SetText(nil)
     if view.castTime then
         view.castTime:Hide()

@@ -266,12 +266,18 @@ Describe("Runtime diagnostics", function()
         local castShown = false
         local castHidden = false
         local castColor
+        local castBackgroundColor
         local view = {
             cast = {
                 Show = function() castShown = true end,
                 Hide = function() castHidden = true end,
                 SetStatusBarColor = function(_, red, green, blue, alpha)
                     castColor = {red, green, blue, alpha}
+                end,
+            },
+            castBackground = {
+                SetVertexColor = function(_, red, green, blue, alpha)
+                    castBackgroundColor = {red, green, blue, alpha}
                 end,
             },
             castIconFrame = {Hide = function() end},
@@ -303,6 +309,10 @@ Describe("Runtime diagnostics", function()
         ExpectEqual(castColor[2], 0)
         ExpectEqual(castColor[3], 0)
         ExpectEqual(castColor[4], 1)
+        ExpectEqual(castBackgroundColor[1], 1)
+        ExpectEqual(castBackgroundColor[2], 0)
+        ExpectEqual(castBackgroundColor[3], 0)
+        ExpectEqual(castBackgroundColor[4], 1)
 
         expiryCallback()
         ExpectEqual(castHidden, true)
@@ -331,6 +341,7 @@ Describe("Runtime diagnostics", function()
                 Hide = function() castHidden = true end,
                 SetStatusBarColor = function() end,
             },
+            castBackground = {SetVertexColor = function() end},
             castIconFrame = {Hide = function() end},
             castText = {SetText = function() end},
             castTarget = {SetText = function() end},

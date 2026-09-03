@@ -15,6 +15,38 @@ Describe("PlateDimensions", function()
         ExpectEqual(config.healthHeight, 16)
     end)
 
+    It("maps persisted name level five to the default font size", function()
+        -- Given
+        local config = {
+            healthWidth = 135,
+            healthHeight = 13.6,
+            nameFontSize = 10,
+        }
+        local saved = {name = 5}
+
+        -- When
+        dimensions:ApplySaved(saved, config)
+
+        -- Then
+        ExpectEqual(config.nameFontSize, 10)
+    end)
+
+    It("maps name levels one through ten around the default", function()
+        -- Given
+        local smallSaved = {}
+        local largeSaved = {}
+
+        -- When
+        local small = dimensions:ApplyCommand("name 1", smallSaved)
+        local large = dimensions:ApplyCommand("name 10", largeSaved)
+
+        -- Then
+        ExpectEqual(small.changed, true)
+        ExpectEqual(large.changed, true)
+        ExpectEqual(smallSaved.name, 1)
+        ExpectEqual(largeSaved.name, 10)
+    end)
+
     It("parses width and height commands within safe ranges", function()
         -- Given
         local saved = {}
@@ -45,6 +77,22 @@ Describe("PlateDimensions", function()
         ExpectEqual(saved.height, nil)
     end)
 
+    It("rejects invalid name levels", function()
+        -- Given
+        local saved = {}
+
+        -- When
+        local below = dimensions:ApplyCommand("name 0", saved)
+        local above = dimensions:ApplyCommand("name 11", saved)
+        local fraction = dimensions:ApplyCommand("name 5.5", saved)
+
+        -- Then
+        ExpectEqual(below.changed, false)
+        ExpectEqual(above.changed, false)
+        ExpectEqual(fraction.changed, false)
+        ExpectEqual(saved.name, nil)
+    end)
+
     It("discards invalid persisted dimensions", function()
         -- Given
         local config = {healthWidth = 135, healthHeight = 13.6}
@@ -62,7 +110,7 @@ Describe("PlateDimensions", function()
 
     It("resets both dimensions to profile defaults", function()
         -- Given
-        local saved = {width = 150, height = 16}
+        local saved = {width = 150, height = 16, name = 8}
 
         -- When
         local result = dimensions:ApplyCommand("reset", saved)
@@ -71,5 +119,6 @@ Describe("PlateDimensions", function()
         ExpectEqual(result.changed, true)
         ExpectEqual(saved.width, nil)
         ExpectEqual(saved.height, nil)
+        ExpectEqual(saved.name, nil)
     end)
 end)

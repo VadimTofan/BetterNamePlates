@@ -76,4 +76,36 @@ Describe("Core lifecycle", function()
         ExpectEqual(resizeCount, 1)
     end)
 
+    It("persists name size commands and refreshes active plates", function()
+        -- Given
+        local resizeCount = 0
+        local namespace = {
+            Config = {
+                healthWidth = 135,
+                healthHeight = 13.6,
+                nameFontSize = 10,
+            },
+            PlateDimensions = LoadAddonFile("PlateDimensions.lua", {}),
+        }
+        local core = LoadAddonFile("Core.lua", namespace)
+        local saved = {}
+
+        core:SetRuntime({
+            ApplyDimensions = function()
+                resizeCount = resizeCount + 1
+            end,
+        })
+        core:SetDatabase(saved)
+        core:InitializeDimensions()
+
+        -- When
+        local result = core:HandleDimensionCommand("name 8")
+
+        -- Then
+        ExpectEqual(result.changed, true)
+        ExpectEqual(saved.name, 8)
+        ExpectEqual(namespace.Config.nameFontSize, 13)
+        ExpectEqual(resizeCount, 1)
+    end)
+
 end)

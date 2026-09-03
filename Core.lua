@@ -67,20 +67,23 @@ if CreateFrame then
         local command = message:lower():match("^%s*(%S*)")
 
         if command == "" or command == "width" or
-            command == "height" or command == "reset" then
+            command == "height" or command == "name" or
+            command == "reset" then
             local result = Core:HandleDimensionCommand(message)
 
             if result.changed or command == "" then
                 print(
                     Identity.name .. ": size=" ..
                     tostring(Config.healthWidth) .. "x" ..
-                    tostring(Config.healthHeight)
+                    tostring(Config.healthHeight) ..
+                    " name=" .. tostring(Core.database.name or 5)
                 )
             else
                 print(
                     Identity.name .. ": use " .. Identity.slashCommand ..
                     " width 50-400, " .. Identity.slashCommand ..
                     " height 6-40, or " .. Identity.slashCommand ..
+                    " name 1-10, or " .. Identity.slashCommand ..
                     " reset"
                 )
             end
@@ -100,7 +103,8 @@ if CreateFrame then
                 Identity.name .. ": use " .. Identity.slashCommand ..
                 " debug, " .. Identity.slashCommand .. " absorbtest, " ..
                 Identity.slashCommand .. " width, or " ..
-                Identity.slashCommand .. " height"
+                Identity.slashCommand .. " height, or " ..
+                Identity.slashCommand .. " name 1-10"
             )
             return
         end

@@ -2108,10 +2108,29 @@ function Runtime:UpdateSelectionIndicator(plateUnit, view)
         false
     )
     local focusStyle = Appearance:GetFocusStyle(isFocus, isTarget)
+    local showTargetScratch = TargetIndicator:ShouldShowScratch(
+        isTarget,
+        Config.targetStyle
+    )
+    local showTargetArrows = TargetIndicator:ShouldShowArrows(
+        isTarget,
+        Config.targetStyle
+    )
+    local scratchColor = Config.colors[
+        TargetIndicator:GetScratchColorKey(showTargetScratch)
+    ]
 
     self:ApplyTargetHealthHeight(view, isTarget)
     view:SetAlpha(focusStyle.alpha)
-    view.focusOverlay:SetAlpha(focusStyle.overlayAlpha)
+    view.focusOverlay:SetVertexColor(
+        scratchColor[1],
+        scratchColor[2],
+        scratchColor[3],
+        scratchColor[4]
+    )
+    view.focusOverlay:SetAlpha(
+        showTargetScratch and 1 or focusStyle.overlayAlpha
+    )
     view.focusBorder:SetShown(
         focusStyle.borderColorKey == "focus"
     )
@@ -2121,6 +2140,8 @@ function Runtime:UpdateSelectionIndicator(plateUnit, view)
     view.targetIndicator:SetShown(
         TargetIndicator:ShouldShow(isTarget)
     )
+    view.targetIndicator.leftArrow:SetShown(showTargetArrows)
+    view.targetIndicator.rightArrow:SetShown(showTargetArrows)
     view.healthMarker:SetShown(
         FrameLayout:ShouldShowHealthMarker(isTarget)
     )

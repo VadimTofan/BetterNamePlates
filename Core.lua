@@ -3,6 +3,7 @@ local _, namespace = ...
 local Identity = namespace.Identity
 local Config = namespace.Config
 local PlateDimensions = namespace.PlateDimensions
+local TargetIndicator = namespace.TargetIndicator
 
 local Core = {
     enabled = false,
@@ -18,6 +19,23 @@ end
 
 function Core:InitializeDimensions()
     PlateDimensions:ApplySaved(self.database, Config)
+end
+
+function Core:InitializeTargetStyle()
+    local style = TargetIndicator:NormalizeStyle(self.database.targetStyle)
+
+    self.database.targetStyle = style
+    Config.targetStyle = style
+end
+
+function Core:HandleTargetStyleCommand()
+    local style = TargetIndicator:GetNextStyle(Config.targetStyle)
+
+    self.database.targetStyle = style
+    Config.targetStyle = style
+    self.runtime:UpdateSelectionIndicators()
+
+    return style
 end
 
 function Core:HandleDimensionCommand(message)
@@ -60,11 +78,20 @@ if CreateFrame then
     _G.BetterNamePlatesDB = _G.BetterNamePlatesDB or {}
     Core:SetDatabase(_G.BetterNamePlatesDB)
     Core:InitializeDimensions()
+    Core:InitializeTargetStyle()
     Core:Start()
 
     _G["SLASH_" .. Identity.slashKey .. "1"] = Identity.slashCommand
     SlashCmdList[Identity.slashKey] = function(message)
         local command = message:lower():match("^%s*(%S*)")
+
+        if command == "change" then
+            print(
+                Identity.name .. ": target style=" ..
+                Core:HandleTargetStyleCommand()
+            )
+            return
+        end
 
         if command == "" or command == "width" or
             command == "height" or command == "name" or
@@ -104,7 +131,8 @@ if CreateFrame then
                 " debug, " .. Identity.slashCommand .. " absorbtest, " ..
                 Identity.slashCommand .. " width, or " ..
                 Identity.slashCommand .. " height, or " ..
-                Identity.slashCommand .. " name 1-10"
+                Identity.slashCommand .. " name 1-10, or " ..
+                Identity.slashCommand .. " change"
             )
             return
         end

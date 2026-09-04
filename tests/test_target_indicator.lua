@@ -57,6 +57,72 @@ Describe("Target indicator", function()
         ExpectEqual(shouldShow, false)
     end)
 
+    It("defaults invalid target styles to arrows", function()
+        -- Given
+        local missingStyle = nil
+        local invalidStyle = "unknown"
+
+        -- When
+        local missingResult = targetIndicator:NormalizeStyle(missingStyle)
+        local invalidResult = targetIndicator:NormalizeStyle(invalidStyle)
+
+        -- Then
+        ExpectEqual(missingResult, "arrows")
+        ExpectEqual(invalidResult, "arrows")
+    end)
+
+    It("toggles between arrow and scratched target styles", function()
+        -- Given
+        local arrowStyle = "arrows"
+        local scratchedStyle = "scratched"
+
+        -- When
+        local fromArrows = targetIndicator:GetNextStyle(arrowStyle)
+        local fromScratched = targetIndicator:GetNextStyle(scratchedStyle)
+
+        -- Then
+        ExpectEqual(fromArrows, "scratched")
+        ExpectEqual(fromScratched, "arrows")
+    end)
+
+    It("replaces target arrows with the scratched overlay", function()
+        -- Given
+        local isTarget = true
+        local style = "scratched"
+
+        -- When
+        local showArrows = targetIndicator:ShouldShowArrows(
+            isTarget,
+            style
+        )
+        local showScratch = targetIndicator:ShouldShowScratch(
+            isTarget,
+            style
+        )
+
+        -- Then
+        ExpectEqual(showArrows, false)
+        ExpectEqual(showScratch, true)
+    end)
+
+    It("uses a white scratch for targets and a dark scratch for focus", function()
+        -- Given
+        local targetScratch = true
+        local focusScratch = false
+
+        -- When
+        local targetColorKey = targetIndicator:GetScratchColorKey(
+            targetScratch
+        )
+        local focusColorKey = targetIndicator:GetScratchColorKey(
+            focusScratch
+        )
+
+        -- Then
+        ExpectEqual(targetColorKey, "targetScratchOverlay")
+        ExpectEqual(focusColorKey, "focusOverlay")
+    end)
+
     It("refreshes hover state often enough to clear stale borders", function()
         -- Given
         local expectedInterval = 0.15

@@ -108,4 +108,35 @@ Describe("Core lifecycle", function()
         ExpectEqual(resizeCount, 1)
     end)
 
+    It("persists target style changes and refreshes active plates", function()
+        -- Given
+        local refreshCount = 0
+        local namespace = {
+            Config = {},
+            PlateDimensions = {},
+            TargetIndicator = LoadAddonFile("TargetIndicator.lua", {}),
+        }
+        local core = LoadAddonFile("Core.lua", namespace)
+        local saved = {}
+
+        core:SetRuntime({
+            UpdateSelectionIndicators = function()
+                refreshCount = refreshCount + 1
+            end,
+        })
+        core:SetDatabase(saved)
+        core:InitializeTargetStyle()
+
+        -- When
+        local firstStyle = core:HandleTargetStyleCommand()
+        local secondStyle = core:HandleTargetStyleCommand()
+
+        -- Then
+        ExpectEqual(firstStyle, "scratched")
+        ExpectEqual(secondStyle, "arrows")
+        ExpectEqual(saved.targetStyle, "arrows")
+        ExpectEqual(namespace.Config.targetStyle, "arrows")
+        ExpectEqual(refreshCount, 2)
+    end)
+
 end)

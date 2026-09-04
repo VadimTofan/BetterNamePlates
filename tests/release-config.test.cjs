@@ -130,6 +130,16 @@ assert.match(
   "threat-list updates must refresh the affected plate appearance",
 );
 assert.match(
+  runtime,
+  /ShouldShowArrows[\s\S]*?leftArrow:SetShown[\s\S]*?rightArrow:SetShown/,
+  "target styles must toggle arrows without hiding the target border",
+);
+assert.match(
+  config,
+  /targetScratchOverlay\s*=\s*\{\s*1,\s*1,\s*1,\s*0\.501960813999176\s*\}/,
+  "scratched targets must use a translucent white overlay",
+);
+assert.match(
   config,
   /castTargetMaxCharacters\s*=\s*10/,
   "spell target name width must allow approximately ten characters",

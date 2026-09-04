@@ -161,6 +161,11 @@ assert.match(
 );
 assert.match(
   runtime,
+  /function Runtime:UpdateCast\([\s\S]*?RestoreActiveCast\(view\)[\s\S]*?castTimeBinding:SetDuration/,
+  "new casts must restore their timer before binding the duration",
+);
+assert.match(
+  runtime,
   /UpdateCastTarget\([\s\S]*?UnitSpellTargetName/,
   "cast target names must use Blizzard's dedicated target-name API",
 );

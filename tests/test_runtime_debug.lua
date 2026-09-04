@@ -370,6 +370,35 @@ Describe("Runtime diagnostics", function()
         ExpectEqual(view.interruptedCastTimer, nil)
     end)
 
+    It("restores the timer when a new cast replaces an interruption", function()
+        -- Given
+        local namespace = {
+            Config = {},
+            CombatState = {},
+            FrameLayout = {},
+            Rules = {},
+        }
+        local runtime = LoadAddonFile("Runtime.lua", namespace)
+        local timerCancelled = false
+        local timerShown = false
+        local view = {
+            interruptedCastTimer = {
+                Cancel = function() timerCancelled = true end,
+            },
+            castTime = {
+                Show = function() timerShown = true end,
+            },
+        }
+
+        -- When
+        runtime:RestoreActiveCast(view)
+
+        -- Then
+        ExpectEqual(timerCancelled, true)
+        ExpectEqual(timerShown, true)
+        ExpectEqual(view.interruptedCastTimer, nil)
+    end)
+
     It("renders and expires a kick indicator", function()
         -- Given
         local hidden = false

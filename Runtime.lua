@@ -850,6 +850,14 @@ function Runtime:CancelInterruptedCast(view)
     view.interruptedCastTimer = nil
 end
 
+function Runtime:RestoreActiveCast(view)
+    self:CancelInterruptedCast(view)
+
+    if view.castTime then
+        view.castTime:Show()
+    end
+end
+
 function Runtime:ShowInterruptedCast(unit, view, newTimer)
     self:CancelInterruptedCast(view)
     self:SetCastingPlate(unit, view, false)
@@ -1735,6 +1743,8 @@ function Runtime:UpdateCast(unit, event)
         return
     end
 
+    self:RestoreActiveCast(view)
+
     view.cast:SetReverseFill(false)
     CastDuration:BindRemainingTime(
         view.cast,
@@ -1792,11 +1802,6 @@ function Runtime:InstallBlizzardFrameSuppression(view, installHook)
 
     if not unitFrame or view.blizzardSuppressionHooked then
         return
-    end
-
-    self:CancelInterruptedCast(view)
-    if view.castTime then
-        view.castTime:Show()
     end
 
     local hook = installHook or hooksecurefunc

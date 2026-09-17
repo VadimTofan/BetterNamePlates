@@ -6,10 +6,18 @@ function readRepositoryFile(path) {
 }
 
 const manifest = readRepositoryFile("BetterNamePlates.toc");
+const foreverManifest = readRepositoryFile("BetterNamePlates_Vanilla.toc");
+const tbcManifest = readRepositoryFile("BetterNamePlates_TBC.toc");
+const mistsManifest = readRepositoryFile("BetterNamePlates_Mists.toc");
+const manifests = [manifest, foreverManifest, tbcManifest, mistsManifest];
 
 assert.ok(
   manifest.includes("## X-Curse-Project-ID: 1664307"),
   "manifest must identify CurseForge project 1664307",
+);
+assert.ok(
+  manifests.every((toc) => toc.includes("## Version: @project-version@")),
+  "every manifest must derive its addon version from the release tag",
 );
 assert.ok(
   manifest.includes("## SavedVariables: BetterNamePlatesDB"),
@@ -18,6 +26,55 @@ assert.ok(
 assert.ok(
   manifest.includes("PlateDimensions.lua"),
   "manifest must load dimension handling before the runtime",
+);
+assert.ok(
+  manifest.includes("Compatibility.lua"),
+  "Retail manifest must load compatibility handling",
+);
+assert.ok(
+  foreverManifest.includes("## Interface: 11509, 11601"),
+  "Vanilla manifest must target Classic Era and WoW Forever",
+);
+assert.ok(
+  foreverManifest.includes("## X-Curse-Project-ID: 1664307"),
+  "Forever manifest must identify the same CurseForge project",
+);
+assert.ok(
+  foreverManifest.includes("Compatibility.lua"),
+  "Forever manifest must load compatibility handling",
+);
+assert.ok(
+  foreverManifest.includes("SeasonForever.lua"),
+  "Forever manifest must load Forever-specific content rules",
+);
+assert.ok(
+  !foreverManifest.includes("\nSeason.lua"),
+  "Forever manifest must not load Retail seasonal rules",
+);
+assert.ok(
+  tbcManifest.includes("## Interface: 20506"),
+  "TBC manifest must target Burning Crusade Classic Anniversary",
+);
+assert.ok(
+  tbcManifest.includes("SeasonClassic.lua"),
+  "TBC manifest must load Classic-family content rules",
+);
+assert.ok(
+  mistsManifest.includes("## Interface: 50504"),
+  "Mists manifest must target Mists of Pandaria Classic",
+);
+assert.ok(
+  mistsManifest.includes("SeasonClassic.lua"),
+  "Mists manifest must load Classic-family content rules",
+);
+assert.ok(
+  manifest.indexOf("Compatibility.lua") < manifest.indexOf("Runtime.lua"),
+  "Retail compatibility must load before the runtime",
+);
+assert.ok(
+  foreverManifest.indexOf("Compatibility.lua") <
+    foreverManifest.indexOf("Runtime.lua"),
+  "Forever compatibility must load before the runtime",
 );
 
 const packageMetadata = readRepositoryFile(".pkgmeta");
@@ -76,6 +133,30 @@ assert.ok(
 assert.ok(
   readme.includes("![BetterNamePlates icon](icon-readme.png)"),
   "the README must display the full-size repository icon",
+);
+assert.ok(
+  readme.includes("WoW Forever 1.60.1"),
+  "the README must document WoW Forever compatibility",
+);
+assert.ok(
+  readme.includes("_classic_beta_/Interface/AddOns/"),
+  "the README must document the Forever beta installation path",
+);
+assert.ok(
+  readme.includes("Classic Era, Hardcore, and Season of Discovery"),
+  "the README must document Vanilla-family compatibility",
+);
+assert.ok(
+  readme.includes("Burning Crusade Classic Anniversary"),
+  "the README must document TBC compatibility",
+);
+assert.ok(
+  readme.includes("Mists of Pandaria Classic"),
+  "the README must document Mists compatibility",
+);
+assert.ok(
+  readme.includes("one download"),
+  "the README must explain the shared multi-client package",
 );
 const healthFontUses = runtime.match(/Config\.healthFont(?!Size)/g) ?? [];
 

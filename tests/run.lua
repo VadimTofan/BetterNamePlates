@@ -30,6 +30,7 @@ function LoadAddonFile(path, namespace)
 end
 
 dofile("tests/test_core.lua")
+dofile("tests/test_compatibility.lua")
 dofile("tests/test_combat_state.lua")
 dofile("tests/test_interrupts.lua")
 dofile("tests/test_kick_tracker.lua")

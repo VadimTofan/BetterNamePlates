@@ -5,6 +5,29 @@ local Appearance = namespace.Appearance
 local AuraDisplay = namespace.AuraDisplay
 local CastDuration = namespace.CastDuration
 local CombatState = namespace.CombatState
+local Compatibility = namespace.Compatibility or {
+    FilterEvents = function(_, events)
+        return events
+    end,
+    GetCurrentFlavor = function()
+        return "retail"
+    end,
+    CreateNumericFormatter = function(_, createFormatter)
+        return createFormatter()
+    end,
+    EvaluateBoolean = function(_, value, trueValue, falseValue)
+        return value and trueValue or falseValue
+    end,
+    GetHealthPercent = function(_, health, maximum)
+        return maximum > 0 and health / maximum or 0
+    end,
+    ResolvePlayerRole = function(_, assignedRole, specializationRole)
+        return CombatState:ResolvePlayerRole(
+            assignedRole,
+            specializationRole
+        )
+    end,
+}
 local DisplayText = namespace.DisplayText
 local FriendlyNameStyle = namespace.FriendlyNameStyle
 local FrameLayout = namespace.FrameLayout
@@ -247,7 +270,9 @@ local function applyHealthLayerLevels(view)
 end
 
 local function createAbsorbCalculator()
-    if not CreateUnitHealPredictionCalculator then
+    if not CreateUnitHealPredictionCalculator or not Enum or
+        not Enum.UnitMaximumHealthMode or
+        not Enum.UnitDamageAbsorbClampMode then
         return nil
     end
 
@@ -264,6 +289,11 @@ local function createAbsorbCalculator()
 end
 
 local function createHealthMarkerAlphaCurve()
+    if not C_CurveUtil or not C_CurveUtil.CreateCurve or not Enum or
+        not Enum.LuaCurveType then
+        return nil
+    end
+
     local curve = C_CurveUtil.CreateCurve()
 
     curve:SetType(Enum.LuaCurveType.Step)
@@ -802,12 +832,18 @@ function Runtime:UpdateCastTarget(
 )
     shouldDisplayTargetName = shouldDisplayTargetName or
         UnitShouldDisplaySpellTargetName
-    getTargetName = getTargetName or UnitSpellTargetName
-    getTargetClass = getTargetClass or UnitSpellTargetClass
-    getClassColor = getClassColor or GetClassColor
+    getTargetName = getTargetName or UnitSpellTargetName or function()
+        return nil
+    end
+    getTargetClass = getTargetClass or UnitSpellTargetClass or function()
+        return nil
+    end
+    getClassColor = getClassColor or GetClassColor or function()
+        return nil
+    end
     canAccessClass = canAccessClass or canAccessValue
 
-    if not shouldDisplayTargetName(unit) then
+    if not shouldDisplayTargetName or not shouldDisplayTargetName(unit) then
         view.castTarget:SetText(nil)
         return
     end
@@ -903,7 +939,13 @@ function Runtime:ShowKickIndicator(
 )
     self:ClearKickIndicator(view)
 
-    getTexture = getTexture or C_Spell.GetSpellTexture
+    getTexture = getTexture or function(requestedSpellID)
+        return Compatibility:GetSpellTexture(
+            requestedSpellID,
+            C_Spell,
+            GetSpellTexture
+        )
+    end
     newTimer = newTimer or C_Timer.NewTimer
 
     local genericSpellID = KickTracker and
@@ -1325,21 +1367,26 @@ function Runtime:RefreshInterruptSpell()
     self.interruptSpellID = Interrupts:FindKnownSpell(
         classID,
         function(spellID, bank)
-            if not C_SpellBook then
-                return false
-            end
-
             if bank == "pet" then
+                if not C_SpellBook or not Enum or
+                    not Enum.SpellBookSpellBank then
+                    return false
+                end
+
                 local petBank = Enum.SpellBookSpellBank.Pet
 
                 return C_SpellBook.IsSpellKnown(spellID, petBank)
             end
 
-            if C_SpellBook.IsSpellKnown(spellID) then
+            if Compatibility:IsSpellKnown(
+                spellID,
+                C_SpellBook,
+                IsSpellKnown or IsPlayerSpell
+            ) then
                 return true
             end
 
-            return spellID == 132409 and
+            return C_SpellBook and spellID == 132409 and
                 C_SpellBook.IsSpellKnownOrInSpellBook and
                 C_SpellBook.IsSpellKnownOrInSpellBook(spellID)
         end
@@ -1411,17 +1458,17 @@ end
 
 local function evaluateColorBoolean(value, trueColor, falseColor)
     return
-        C_CurveUtil.EvaluateColorValueFromBoolean(
+        Compatibility:EvaluateBoolean(
             value,
             trueColor[1],
             falseColor[1]
         ),
-        C_CurveUtil.EvaluateColorValueFromBoolean(
+        Compatibility:EvaluateBoolean(
             value,
             trueColor[2],
             falseColor[2]
         ),
-        C_CurveUtil.EvaluateColorValueFromBoolean(
+        Compatibility:EvaluateBoolean(
             value,
             trueColor[3],
             falseColor[3]
@@ -1463,17 +1510,17 @@ local function updateCastVisual(view, duration, cooldown)
         readyColor,
         unavailableColor
     )
-    local castRed = C_CurveUtil.EvaluateColorValueFromBoolean(
+    local castRed = Compatibility:EvaluateBoolean(
         view.castNotInterruptible,
         protectedColor[1],
         activeRed
     )
-    local castGreen = C_CurveUtil.EvaluateColorValueFromBoolean(
+    local castGreen = Compatibility:EvaluateBoolean(
         view.castNotInterruptible,
         protectedColor[2],
         activeGreen
     )
-    local castBlue = C_CurveUtil.EvaluateColorValueFromBoolean(
+    local castBlue = Compatibility:EvaluateBoolean(
         view.castNotInterruptible,
         protectedColor[3],
         activeBlue
@@ -1493,12 +1540,12 @@ local function updateCastVisual(view, duration, cooldown)
         1
     )
 
-    local markerAlpha = C_CurveUtil.EvaluateColorValueFromBoolean(
+    local markerAlpha = Compatibility:EvaluateBoolean(
         cooldownReady,
         0,
         1
     )
-    markerAlpha = C_CurveUtil.EvaluateColorValueFromBoolean(
+    markerAlpha = Compatibility:EvaluateBoolean(
         view.castNotInterruptible,
         0,
         markerAlpha
@@ -1534,15 +1581,16 @@ function Runtime:GetPlayerRole()
         return self.playerRole
     end
 
-    local assignedRole = UnitGroupRolesAssigned("player")
-    local specializationIndex = GetSpecialization()
+    local assignedRole = UnitGroupRolesAssigned and
+        UnitGroupRolesAssigned("player") or "NONE"
+    local specializationIndex = GetSpecialization and GetSpecialization()
     local specializationRole
 
-    if specializationIndex then
+    if specializationIndex and GetSpecializationRole then
         specializationRole = GetSpecializationRole(specializationIndex)
     end
 
-    self.playerRole = CombatState:ResolvePlayerRole(
+    self.playerRole = Compatibility:ResolvePlayerRole(
         assignedRole,
         specializationRole
     )
@@ -1562,7 +1610,7 @@ function Runtime:BuildPlateIdentity(unit)
         "normal"
     )
     local effectiveLevel = DisplayText:SafeValue(
-        UnitEffectiveLevel(unit),
+        UnitEffectiveLevel and UnitEffectiveLevel(unit) or UnitLevel(unit),
         nil
     )
     local rawPowerType, rawPowerToken = UnitPowerType(unit)
@@ -1574,9 +1622,12 @@ function Runtime:BuildPlateIdentity(unit)
         rawPowerToken,
         nil
     )
-    local classBase = DisplayText:SafeValue(UnitClassBase(unit), nil)
+    local classBase = DisplayText:SafeValue(
+        UnitClassBase and UnitClassBase(unit) or select(2, UnitClass(unit)),
+        nil
+    )
     local isLieutenant = DisplayText:SafeValue(
-        UnitIsLieutenant(unit),
+        UnitIsLieutenant and UnitIsLieutenant(unit) or false,
         false
     )
     local profileColorKey = NpcClassification:GetColorKey({
@@ -1660,17 +1711,27 @@ function Runtime:UpdateHealth(unit, shouldUpdateAppearance, shouldUpdateAbsorb)
     if shouldUpdateAbsorb ~= false then
         self:UpdateAbsorbValues(unit, view)
     end
-    view.healthMarker:SetAlpha(UnitHealthPercent(
-        unit,
-        true,
-        view.healthMarkerAlphaCurve
-    ))
+    local markerAlpha = Compatibility:GetHealthPercent(health, maximum)
+
+    if UnitHealthPercent and view.healthMarkerAlphaCurve then
+        markerAlpha = UnitHealthPercent(
+            unit,
+            true,
+            view.healthMarkerAlphaCurve
+        )
+    elseif markerAlpha >= 0.99 then
+        markerAlpha = 0
+    else
+        markerAlpha = 1
+    end
+
+    view.healthMarker:SetAlpha(markerAlpha)
     self:SetHealthText(
         view.healthText,
         HealthFormat:FormatHealth(health, AbbreviateNumbers)
     )
 
-    if issecretvalue and
+    if issecretvalue and UnitHealthPercent and CurveConstants and
         (issecretvalue(health) or issecretvalue(maximum)) then
         local percentage = HealthFormat:GetRestrictedPercentage(
             unit,
@@ -1701,12 +1762,12 @@ function Runtime:UpdateCast(unit, event)
         self:CancelInterruptedCast(view)
     end
 
-    local name, _, textureID, _, _, _, _, notInterruptible =
+    local name, _, textureID, startTimeMS, endTimeMS, _, _, notInterruptible =
         UnitCastingInfo(unit)
     local isChannel = false
 
     if not name then
-        name, _, textureID, _, _, _, notInterruptible =
+        name, _, textureID, startTimeMS, endTimeMS, _, notInterruptible =
             UnitChannelInfo(unit)
         isChannel = name ~= nil
     end
@@ -1730,12 +1791,20 @@ function Runtime:UpdateCast(unit, event)
     )
     view.isChannel = isChannel
     view.castNotInterruptible = notInterruptible
-    view.castDuration = CastDuration:GetUnitDuration(
-        unit,
-        isChannel,
-        UnitCastingDuration,
-        UnitChannelDuration
-    )
+    if UnitCastingDuration and UnitChannelDuration then
+        view.castDuration = CastDuration:GetUnitDuration(
+            unit,
+            isChannel,
+            UnitCastingDuration,
+            UnitChannelDuration
+        )
+    else
+        view.castDuration = Compatibility:CreateLegacyDuration(
+            startTimeMS,
+            endTimeMS,
+            GetTime
+        )
+    end
 
     if not view.castDuration then
         self:SetCastingPlate(unit, view, false)
@@ -1746,13 +1815,20 @@ function Runtime:UpdateCast(unit, event)
     self:RestoreActiveCast(view)
 
     view.cast:SetReverseFill(false)
+    local immediate = Enum and Enum.StatusBarInterpolation and
+        Enum.StatusBarInterpolation.Immediate
+    local timerDirections = Enum and Enum.StatusBarTimerDirection or {
+        ElapsedTime = 0,
+        RemainingTime = 1,
+    }
+
     CastDuration:BindRemainingTime(
         view.cast,
         view.castDuration,
-        Enum.StatusBarInterpolation.Immediate,
+        immediate,
         CastDuration:GetTimerDirection(
             isChannel,
-            Enum.StatusBarTimerDirection
+            timerDirections
         )
     )
     local cooldownOverlayLayout =
@@ -1917,11 +1993,11 @@ function Runtime:AddPlate(unit)
         nil
     )
     local effectiveLevel = DisplayText:SafeValue(
-        UnitEffectiveLevel(unit),
+        UnitEffectiveLevel and UnitEffectiveLevel(unit) or UnitLevel(unit),
         nil
     )
     local isLieutenant = DisplayText:SafeValue(
-        UnitIsLieutenant(unit),
+        UnitIsLieutenant and UnitIsLieutenant(unit) or false,
         false
     )
 
@@ -2240,6 +2316,21 @@ function Runtime:ReleaseForLoadingScreen(collect)
     collect()
 end
 
+function Runtime:UpdateLegacyCastProgress(view)
+    local duration = view.castDuration
+
+    if not duration or not duration.legacy then
+        return
+    end
+
+    local total = duration:GetTotalDuration()
+    local remaining = duration:GetRemainingDuration()
+    local progress = view.isChannel and remaining or total - remaining
+
+    view.cast:SetValue(progress)
+    view.castTime:SetText(string.format("%.1f", remaining))
+end
+
 function Runtime:OnUpdate(elapsed)
     local shouldRefreshHover
 
@@ -2252,6 +2343,10 @@ function Runtime:OnUpdate(elapsed)
 
     if shouldRefreshHover then
         self:UpdateHoverIndicators()
+    end
+
+    for _, view in pairs(self.castingPlates) do
+        self:UpdateLegacyCastProgress(view)
     end
 
 end
@@ -2410,7 +2505,7 @@ function Runtime:OnEvent(
     end
 end
 
-function Runtime:GetEventRegistrationPlan(hasNativeAuras)
+function Runtime:GetEventRegistrationPlan(hasNativeAuras, flavor)
     local events = {
         "NAME_PLATE_UNIT_ADDED",
         "NAME_PLATE_UNIT_REMOVED",
@@ -2448,6 +2543,8 @@ function Runtime:GetEventRegistrationPlan(hasNativeAuras)
         events[#events + 1] = "UNIT_AURA"
     end
 
+    events = Compatibility:FilterEvents(events, flavor or "retail")
+
     return {
         events = events,
         playerEvents = {
@@ -2458,9 +2555,9 @@ end
 
 function Runtime:CreateAuraTimeFormatter(createFormatter)
     createFormatter = createFormatter or
-        C_StringUtil.CreateNumericRuleFormatter
+        C_StringUtil and C_StringUtil.CreateNumericRuleFormatter
 
-    local formatter = createFormatter()
+    local formatter = Compatibility:CreateNumericFormatter(createFormatter)
 
     for _, breakpoint in ipairs(AuraDisplay:GetDurationBreakpoints()) do
         formatter:AddBreakpoint(breakpoint)
@@ -2478,7 +2575,9 @@ function Runtime:Enable()
         SetCVar,
         InCombatLockdown and InCombatLockdown()
     )
-    self.castTimeFormatter = C_StringUtil.CreateNumericRuleFormatter()
+    self.castTimeFormatter = Compatibility:CreateNumericFormatter(
+        C_StringUtil and C_StringUtil.CreateNumericRuleFormatter
+    )
     self.castTimeFormatter:AddBreakpoint(
         CastDuration:GetTimeBreakpoint()
     )
@@ -2492,15 +2591,16 @@ function Runtime:Enable()
     end
 
     local registrationPlan = self:GetEventRegistrationPlan(
-        supportsNativeAuraContainers()
+        supportsNativeAuraContainers(),
+        Compatibility:GetCurrentFlavor()
     )
 
     for _, event in ipairs(registrationPlan.events) do
-        self.frame:RegisterEvent(event)
+        pcall(self.frame.RegisterEvent, self.frame, event)
     end
 
     for event in pairs(registrationPlan.playerEvents) do
-        self.frame:RegisterUnitEvent(event, "player")
+        pcall(self.frame.RegisterUnitEvent, self.frame, event, "player")
     end
 
     self:RefreshPlayerRole()
@@ -2511,7 +2611,10 @@ function Runtime:Enable()
     )
     self:InstallFriendlyOptionsHook()
 
-    for _, basePlate in ipairs(C_NamePlate.GetNamePlates()) do
+    local existingPlates = C_NamePlate and C_NamePlate.GetNamePlates and
+        C_NamePlate.GetNamePlates() or {}
+
+    for _, basePlate in ipairs(existingPlates) do
         local unit = basePlate.namePlateUnitToken
 
         if unit then

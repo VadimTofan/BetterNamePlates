@@ -2,9 +2,9 @@
 
 ![BetterNamePlates icon](icon-readme.png)
 
-BetterNamePlates is a lightweight, opinionated nameplate addon for World of
-Warcraft Retail. It recreates the combat clarity of a focused Plater profile
-without requiring Plater or its broader collection of features.
+BetterNamePlates is a lightweight, opinionated nameplate addon for every
+active World of Warcraft client. It recreates the combat clarity of a focused
+Plater profile without requiring Plater or its broader collection of features.
 
 The addon is designed primarily for Mythic and Mythic+ combat, but its
 nameplates remain active everywhere. There are no settings, profiles, or
@@ -47,6 +47,22 @@ using the CurseForge app or a compatible addon manager.
 4. Restart World of Warcraft or run `/reload` if the addon was already copied
    before launching the game.
 
+The same release supports Retail, WoW Forever, Classic Era, Hardcore, Season
+of Discovery, Burning Crusade Classic Anniversary, and Mists of Pandaria
+Classic. Install the `BetterNamePlates` folder in the selected client's
+`Interface/AddOns/` directory. WoW automatically loads its matching manifest.
+
+All supported clients use one download. Each client ignores the manifests and
+content rules belonging to other game versions.
+
+Supported client families:
+
+- Retail
+- WoW Forever 1.60.1 (`_classic_beta_/Interface/AddOns/` during beta)
+- Classic Era, Hardcore, and Season of Discovery
+- Burning Crusade Classic Anniversary
+- Mists of Pandaria Classic
+
 ## Usage
 
 BetterNamePlates enables itself automatically. No setup is required.
@@ -86,10 +102,11 @@ GitHub Releases and CurseForge.
 
 ## Status and Compatibility
 
-BetterNamePlates is under active development and currently targets World of
-Warcraft Retail. It is intentionally focused on dungeon and Mythic+ combat and
-does not aim to replace every feature available in general-purpose nameplate
-addons.
+BetterNamePlates is under active development and supports Retail, WoW Forever
+1.60.1, Classic Era, Hardcore, Season of Discovery, Burning Crusade Classic
+Anniversary, and Mists of Pandaria Classic. Retail remains focused on dungeon
+and Mythic+ combat; Classic-family clients use separate content rules while
+sharing the same compatibility-tested runtime.
 
 ## Support
 

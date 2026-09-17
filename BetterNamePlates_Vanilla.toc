@@ -1,6 +1,6 @@
-## Interface: 120100
+## Interface: 11509, 11601
 ## Title: BetterNamePlates
-## Notes: Opinionated, lightweight Mythic+ nameplates.
+## Notes: Opinionated, lightweight WoW Forever nameplates.
 ## Author: Vadim
 ## Version: @project-version@
 ## X-Curse-Project-ID: 1664307
@@ -27,6 +27,7 @@ CastDuration.lua
 AuraDisplay.lua
 NameplateStacking.lua
 Rules.lua
-Season.lua
+SeasonClassic.lua
+SeasonForever.lua
 Runtime.lua
 Core.lua

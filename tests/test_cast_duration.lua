@@ -114,6 +114,40 @@ Describe("Secret-safe cast durations", function()
         ExpectEqual(direction, timerDirections.ElapsedTime)
     end)
 
+    It("initializes legacy status bars without timer APIs", function()
+        -- Given a legacy status bar and adapted duration
+        local namespace = {}
+        local castDuration = LoadAddonFile("CastDuration.lua", namespace)
+        local minimum
+        local maximum
+        local value
+        local statusBar = {
+            SetMinMaxValues = function(_, receivedMinimum, receivedMaximum)
+                minimum = receivedMinimum
+                maximum = receivedMaximum
+            end,
+            SetValue = function(_, receivedValue)
+                value = receivedValue
+            end,
+        }
+        local duration = {
+            GetTotalDuration = function()
+                return 5
+            end,
+            GetRemainingDuration = function()
+                return 3
+            end,
+        }
+
+        -- When the duration is bound
+        castDuration:BindRemainingTime(statusBar, duration, nil, nil)
+
+        -- Then the legacy bar starts with elapsed progress
+        ExpectEqual(minimum, 0)
+        ExpectEqual(maximum, 5)
+        ExpectEqual(value, 2)
+    end)
+
     It("selects remaining time so channels drain from right to left", function()
         -- Given
         local namespace = {}

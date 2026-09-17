@@ -43,6 +43,15 @@ function CastDuration:BindRemainingTime(
     interpolation,
     direction
 )
+    if not statusBar.SetTimerDuration then
+        local total = duration:GetTotalDuration()
+        local remaining = duration:GetRemainingDuration()
+
+        statusBar:SetMinMaxValues(0, total)
+        statusBar:SetValue(total - remaining)
+        return
+    end
+
     statusBar:SetTimerDuration(
         duration,
         interpolation,

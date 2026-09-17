@@ -157,6 +157,38 @@ Describe("Runtime diagnostics", function()
         )
     end)
 
+    It("removes Retail-only events from the Forever plan", function()
+        -- Given
+        local namespace = {
+            Compatibility = LoadAddonFile("Compatibility.lua", {}),
+            Config = {},
+            CombatState = {},
+            FrameLayout = {},
+            Rules = {},
+        }
+        local runtime = LoadAddonFile("Runtime.lua", namespace)
+        local function contains(values, expected)
+            for _, value in ipairs(values) do
+                if value == expected then
+                    return true
+                end
+            end
+
+            return false
+        end
+
+        -- When
+        local plan = runtime:GetEventRegistrationPlan(true, "forever")
+
+        -- Then
+        ExpectEqual(
+            contains(plan.events, "PLAYER_SPECIALIZATION_CHANGED"),
+            false
+        )
+        ExpectEqual(contains(plan.events, "TRAIT_CONFIG_UPDATED"), false)
+        ExpectEqual(contains(plan.events, "NAME_PLATE_UNIT_ADDED"), true)
+    end)
+
     It("installs every aura duration formatting breakpoint", function()
         -- Given
         local expectedBreakpoints = {{threshold = 0}, {threshold = 60}, {
@@ -1034,6 +1066,48 @@ Describe("Runtime diagnostics", function()
         -- Then
         ExpectEqual(activeView, castingView)
         ExpectEqual(runtime.castingPlates.nameplate1, nil)
+    end)
+
+    It("updates legacy castbar progress during runtime updates", function()
+        -- Given a legacy cast duration with two seconds remaining
+        local namespace = {
+            Config = {},
+            CombatState = {},
+            FrameLayout = {},
+            Rules = {},
+        }
+        local runtime = LoadAddonFile("Runtime.lua", namespace)
+        local receivedValue
+        local receivedText
+        local view = {
+            isChannel = false,
+            castDuration = {
+                legacy = true,
+                GetTotalDuration = function()
+                    return 5
+                end,
+                GetRemainingDuration = function()
+                    return 2
+                end,
+            },
+            cast = {
+                SetValue = function(_, value)
+                    receivedValue = value
+                end,
+            },
+            castTime = {
+                SetText = function(_, text)
+                    receivedText = text
+                end,
+            },
+        }
+
+        -- When legacy progress is refreshed
+        runtime:UpdateLegacyCastProgress(view)
+
+        -- Then elapsed progress and remaining text are updated
+        ExpectEqual(receivedValue, 3)
+        ExpectEqual(receivedText, "2.0")
     end)
 
     It("applies changed dimensions to every active hostile plate", function()

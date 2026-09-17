@@ -1,6 +1,6 @@
-## Interface: 120100
+## Interface: 50504
 ## Title: BetterNamePlates
-## Notes: Opinionated, lightweight Mythic+ nameplates.
+## Notes: Opinionated, lightweight Mists of Pandaria Classic nameplates.
 ## Author: Vadim
 ## Version: @project-version@
 ## X-Curse-Project-ID: 1664307
@@ -27,6 +27,6 @@ CastDuration.lua
 AuraDisplay.lua
 NameplateStacking.lua
 Rules.lua
-Season.lua
+SeasonClassic.lua
 Runtime.lua
 Core.lua

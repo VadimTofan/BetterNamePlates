@@ -115,6 +115,12 @@ assert.ok(
   "release workflow must use the WoW addon packager",
 );
 assert.ok(
+  workflow.includes(
+    'args: -g "12.1.0,5.5.4,2.5.6,1.60.1,1.15.9"',
+  ),
+  "release workflow must explicitly map every supported CurseForge version",
+);
+assert.ok(
   workflow.includes("CF_API_KEY: ${{ secrets.CF_API_TOKEN }}"),
   "release workflow must map the configured CurseForge secret",
 );

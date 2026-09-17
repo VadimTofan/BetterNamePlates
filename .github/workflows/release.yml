@@ -38,6 +38,8 @@ jobs:
 
       - name: Package and publish addon
         uses: BigWigsMods/packager@v2
+        with:
+          args: -g "12.1.0,5.5.4,2.5.6,1.60.1,1.15.9"
         env:
           CF_API_KEY: ${{ secrets.CF_API_TOKEN }}
           GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}

@@ -21,6 +21,20 @@ local Compatibility = namespace.Compatibility or {
     GetHealthPercent = function(_, health, maximum)
         return maximum > 0 and health / maximum or 0
     end,
+    GetHealthMarkerAlpha = function(
+        self,
+        unit,
+        health,
+        maximum,
+        unitHealthPercent,
+        alphaCurve
+    )
+        if unitHealthPercent and alphaCurve then
+            return unitHealthPercent(unit, true, alphaCurve)
+        end
+
+        return self:GetHealthPercent(health, maximum) >= 0.99 and 0 or 1
+    end,
     ResolvePlayerRole = function(_, assignedRole, specializationRole)
         return CombatState:ResolvePlayerRole(
             assignedRole,
@@ -1711,19 +1725,13 @@ function Runtime:UpdateHealth(unit, shouldUpdateAppearance, shouldUpdateAbsorb)
     if shouldUpdateAbsorb ~= false then
         self:UpdateAbsorbValues(unit, view)
     end
-    local markerAlpha = Compatibility:GetHealthPercent(health, maximum)
-
-    if UnitHealthPercent and view.healthMarkerAlphaCurve then
-        markerAlpha = UnitHealthPercent(
-            unit,
-            true,
-            view.healthMarkerAlphaCurve
-        )
-    elseif markerAlpha >= 0.99 then
-        markerAlpha = 0
-    else
-        markerAlpha = 1
-    end
+    local markerAlpha = Compatibility:GetHealthMarkerAlpha(
+        unit,
+        health,
+        maximum,
+        UnitHealthPercent,
+        view.healthMarkerAlphaCurve
+    )
 
     view.healthMarker:SetAlpha(markerAlpha)
     self:SetHealthText(

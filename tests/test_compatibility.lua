@@ -176,6 +176,36 @@ Describe("Compatibility", function()
         ExpectEqual(percentage, 0.75)
     end)
 
+    It("uses the curve API before inspecting restricted health values", function()
+        -- Given opaque health values and a curve-based percentage API
+        local health = {}
+        local maximum = {}
+        local curve = {}
+        local receivedUnit
+        local receivedCurve
+
+        local function getHealthPercent(unit, includePredicted, alphaCurve)
+            receivedUnit = unit
+            receivedCurve = alphaCurve
+            ExpectEqual(includePredicted, true)
+            return 0.4
+        end
+
+        -- When marker alpha is calculated
+        local alpha = Compatibility:GetHealthMarkerAlpha(
+            "nameplate1",
+            health,
+            maximum,
+            getHealthPercent,
+            curve
+        )
+
+        -- Then the opaque values are not compared or divided
+        ExpectEqual(alpha, 0.4)
+        ExpectEqual(receivedUnit, "nameplate1")
+        ExpectEqual(receivedCurve, curve)
+    end)
+
     It("selects ordinary boolean values without curve APIs", function()
         -- Given two presentation values
         -- When an ordinary boolean is evaluated

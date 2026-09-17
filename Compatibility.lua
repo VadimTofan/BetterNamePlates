@@ -134,6 +134,26 @@ function Compatibility:GetHealthPercent(health, maximum)
     return health / maximum
 end
 
+function Compatibility:GetHealthMarkerAlpha(
+    unit,
+    health,
+    maximum,
+    unitHealthPercent,
+    alphaCurve
+)
+    if unitHealthPercent and alphaCurve then
+        return unitHealthPercent(unit, true, alphaCurve)
+    end
+
+    local percentage = self:GetHealthPercent(health, maximum)
+
+    if percentage >= 0.99 then
+        return 0
+    end
+
+    return 1
+end
+
 function Compatibility:EvaluateBoolean(value, trueValue, falseValue)
     if C_CurveUtil and C_CurveUtil.EvaluateColorValueFromBoolean then
         return C_CurveUtil.EvaluateColorValueFromBoolean(

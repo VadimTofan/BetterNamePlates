@@ -90,10 +90,11 @@ Describe("Restricted display text", function()
 
             for classification in pairs(classifications) do
                 results[flavor][classification] =
-                    displayText:AppendClassification(
+                    displayText:FormatNpcName(
                         "Blackrock Worg",
                         classification,
                         flavor,
+                        60,
                         function()
                             return false
                         end
@@ -106,31 +107,58 @@ Describe("Restricted display text", function()
             for classification, suffix in pairs(classifications) do
                 ExpectEqual(
                     results[flavor][classification],
-                    "Blackrock Worg" .. suffix
+                    "60 Blackrock Worg" .. suffix
                 )
             end
         end
     end)
 
-    It("keeps other classifications unchanged on Classic clients", function()
+    It("shows levels without suffixes for ordinary Classic mobs", function()
         -- Given
         local name = "Blackrock Worg"
 
         -- When
-        local normal = displayText:AppendClassification(
+        local normal = displayText:FormatNpcName(
             name,
             "normal",
-            "vanilla"
-        )
-        local worldboss = displayText:AppendClassification(
-            name,
-            "worldboss",
-            "vanilla"
+            "vanilla",
+            60
         )
 
         -- Then
-        ExpectEqual(normal, name)
-        ExpectEqual(worldboss, name)
+        ExpectEqual(normal, "60 " .. name)
+    end)
+
+    It("shows question marks for skull-level Classic mobs", function()
+        -- Given
+        local name = "World Boss"
+
+        -- When
+        local worldboss = displayText:FormatNpcName(
+            name,
+            "worldboss",
+            "vanilla",
+            -1
+        )
+
+        -- Then
+        ExpectEqual(worldboss, "?? " .. name)
+    end)
+
+    It("keeps the suffix when a Classic mob level is unavailable", function()
+        -- Given
+        local name = "Blackrock Worg"
+
+        -- When
+        local result = displayText:FormatNpcName(
+            name,
+            "elite",
+            "vanilla",
+            nil
+        )
+
+        -- Then
+        ExpectEqual(result, name .. " (E)")
     end)
 
     It("keeps Retail names unchanged", function()
@@ -138,10 +166,11 @@ Describe("Restricted display text", function()
         local name = "Blackrock Worg"
 
         -- When
-        local result = displayText:AppendClassification(
+        local result = displayText:FormatNpcName(
             name,
             "elite",
-            "retail"
+            "retail",
+            60
         )
 
         -- Then

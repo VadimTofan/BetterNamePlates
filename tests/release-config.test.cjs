@@ -258,8 +258,8 @@ assert.match(
 );
 assert.match(
   runtime,
-  /AppendClassification\([\s\S]*?classification[\s\S]*?GetCurrentFlavor/,
-  "hostile names must include Classic classification suffixes",
+  /FormatNpcName\([\s\S]*?classification[\s\S]*?GetCurrentFlavor[\s\S]*?effectiveLevel/,
+  "hostile names must include Classic levels and classification suffixes",
 );
 assert.match(
   runtime,

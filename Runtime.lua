@@ -1667,10 +1667,11 @@ function Runtime:BuildPlateIdentity(unit)
     return {
         appearanceClassification = appearanceClassification,
         isCaster = profileColorKey == "caster",
-        name = DisplayText:AppendClassification(
+        name = DisplayText:FormatNpcName(
             name,
             classification,
-            Compatibility:GetCurrentFlavor()
+            Compatibility:GetCurrentFlavor(),
+            effectiveLevel
         ),
     }
 end

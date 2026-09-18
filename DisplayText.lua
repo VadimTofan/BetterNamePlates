@@ -47,15 +47,14 @@ function DisplayText:ShortenName(name, secretCheck)
     return name:sub(1, namespace.Config.nameMaxLength - 1) .. "…"
 end
 
-function DisplayText:AppendClassification(
+function DisplayText:FormatNpcName(
     name,
     classification,
     flavor,
+    effectiveLevel,
     secretCheck
 )
-    local suffix = CLASSIFICATION_SUFFIXES[classification]
-
-    if not suffix or not CLASSIC_FLAVORS[flavor] then
+    if not CLASSIC_FLAVORS[flavor] then
         return name
     end
 
@@ -65,7 +64,17 @@ function DisplayText:AppendClassification(
         return name
     end
 
-    return name .. suffix
+    local levelPrefix = ""
+
+    if effectiveLevel == -1 then
+        levelPrefix = "?? "
+    elseif type(effectiveLevel) == "number" and effectiveLevel > 0 then
+        levelPrefix = tostring(effectiveLevel) .. " "
+    end
+
+    local suffix = CLASSIFICATION_SUFFIXES[classification] or ""
+
+    return levelPrefix .. name .. suffix
 end
 
 namespace.DisplayText = DisplayText

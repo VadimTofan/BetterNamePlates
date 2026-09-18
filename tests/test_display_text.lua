@@ -72,4 +72,79 @@ Describe("Restricted display text", function()
         -- Then
         ExpectEqual(result, nil)
     end)
+
+    It("appends compact classification suffixes on Classic clients", function()
+        -- Given
+        local flavors = {"vanilla", "forever", "tbc", "mists"}
+        local classifications = {
+            elite = " (E)",
+            rare = " (R)",
+            rareelite = " (RE)",
+        }
+
+        -- When
+        local results = {}
+
+        for _, flavor in ipairs(flavors) do
+            results[flavor] = {}
+
+            for classification in pairs(classifications) do
+                results[flavor][classification] =
+                    displayText:AppendClassification(
+                        "Blackrock Worg",
+                        classification,
+                        flavor,
+                        function()
+                            return false
+                        end
+                    )
+            end
+        end
+
+        -- Then
+        for _, flavor in ipairs(flavors) do
+            for classification, suffix in pairs(classifications) do
+                ExpectEqual(
+                    results[flavor][classification],
+                    "Blackrock Worg" .. suffix
+                )
+            end
+        end
+    end)
+
+    It("keeps other classifications unchanged on Classic clients", function()
+        -- Given
+        local name = "Blackrock Worg"
+
+        -- When
+        local normal = displayText:AppendClassification(
+            name,
+            "normal",
+            "vanilla"
+        )
+        local worldboss = displayText:AppendClassification(
+            name,
+            "worldboss",
+            "vanilla"
+        )
+
+        -- Then
+        ExpectEqual(normal, name)
+        ExpectEqual(worldboss, name)
+    end)
+
+    It("keeps Retail names unchanged", function()
+        -- Given
+        local name = "Blackrock Worg"
+
+        -- When
+        local result = displayText:AppendClassification(
+            name,
+            "elite",
+            "retail"
+        )
+
+        -- Then
+        ExpectEqual(result, name)
+    end)
 end)

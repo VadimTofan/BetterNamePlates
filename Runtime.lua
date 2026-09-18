@@ -1662,10 +1662,16 @@ function Runtime:BuildPlateIdentity(unit)
         appearanceClassification = "rareelite"
     end
 
+    local name = DisplayText:ShortenName(UnitName(unit))
+
     return {
         appearanceClassification = appearanceClassification,
         isCaster = profileColorKey == "caster",
-        name = DisplayText:ShortenName(UnitName(unit)),
+        name = DisplayText:AppendClassification(
+            name,
+            classification,
+            Compatibility:GetCurrentFlavor()
+        ),
     }
 end
 

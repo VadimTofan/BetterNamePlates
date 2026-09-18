@@ -258,6 +258,11 @@ assert.match(
 );
 assert.match(
   runtime,
+  /AppendClassification\([\s\S]*?classification[\s\S]*?GetCurrentFlavor/,
+  "hostile names must include Classic classification suffixes",
+);
+assert.match(
+  runtime,
   /UnitSpellTargetClass[\s\S]*?GetClassColor/,
   "spell target names must use Blizzard's secret-safe class color path",
 );

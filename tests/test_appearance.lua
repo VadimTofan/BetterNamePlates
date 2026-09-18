@@ -99,6 +99,23 @@ Describe("Profile unit coloring", function()
         ExpectEqual(colorKey, "aggro")
     end)
 
+    It("uses grey for tap-denied NPCs before every other color", function()
+        -- Given
+        local isTapDenied = true
+
+        -- When
+        local colorKey = appearance:GetHealthColorKey(
+            "worldboss",
+            true,
+            "aggro",
+            true,
+            isTapDenied
+        )
+
+        -- Then
+        ExpectEqual(colorKey, "tapDenied")
+    end)
+
     It("keeps non-targeted plates fully opaque", function()
         -- Given
         local isTarget = false

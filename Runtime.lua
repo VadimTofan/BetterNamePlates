@@ -1712,11 +1712,13 @@ function Runtime:UpdateHealth(unit, shouldUpdateAppearance, shouldUpdateAbsorb)
             4,
             threatStatus
         )
+        local isTapDenied = UnitIsTapDenied and UnitIsTapDenied(unit) or false
         local colorKey = Appearance:GetHealthColorKey(
             identity.appearanceClassification,
             identity.isCaster,
             threatState,
-            isIdleNeutral
+            isIdleNeutral,
+            isTapDenied
         )
 
         setStatusBarColor(view.health, Config.colors[colorKey])

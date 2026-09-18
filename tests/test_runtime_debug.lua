@@ -835,6 +835,119 @@ Describe("Runtime diagnostics", function()
         ExpectEqual(value, 75)
     end)
 
+    It("passes the unit tap-denied state to health color selection", function()
+        -- Given
+        local previousGlobals = {
+            UnitHealth = UnitHealth,
+            UnitHealthMax = UnitHealthMax,
+            UnitThreatSituation = UnitThreatSituation,
+            UnitReaction = UnitReaction,
+            UnitIsTapDenied = UnitIsTapDenied,
+            UnitHealthPercent = UnitHealthPercent,
+            AbbreviateNumbers = AbbreviateNumbers,
+        }
+        local receivedTapDenied
+        local appliedColor
+        local tapDeniedColor = {0.5, 0.5, 0.5, 1}
+        local namespace = {
+            Config = {colors = {tapDenied = tapDeniedColor}},
+            Appearance = {
+                GetHealthColorKey = function(
+                    _, _, _, _, _, isTapDenied
+                )
+                    receivedTapDenied = isTapDenied
+
+                    return "tapDenied"
+                end,
+            },
+            CombatState = {
+                GetThreatState = function()
+                    return "safe"
+                end,
+                IsIdleNeutral = function()
+                    return false
+                end,
+            },
+            DisplayText = {
+                SafeValue = function(_, value)
+                    return value
+                end,
+            },
+            FrameLayout = {},
+            HealthFormat = {
+                FormatHealth = function()
+                    return "75"
+                end,
+                FormatPercentage = function()
+                    return "75.0%"
+                end,
+            },
+            Rules = {},
+        }
+        local runtime = LoadAddonFile("Runtime.lua", namespace)
+        local view = {
+            identityNameApplied = true,
+            health = {
+                SetStatusBarColor = function(_, red, green, blue, alpha)
+                    appliedColor = {red, green, blue, alpha}
+                end,
+                SetMinMaxValues = function() end,
+                SetValue = function() end,
+            },
+            healthMarker = {SetAlpha = function() end},
+            healthText = {SetText = function() end},
+            healthPercentage = {SetText = function() end},
+        }
+        runtime.activePlates = {nameplate1 = view}
+        runtime.GetPlateIdentity = function()
+            return {
+                appearanceClassification = "normal",
+                isCaster = false,
+                name = "Enemy",
+            }
+        end
+        runtime.GetPlayerRole = function()
+            return "DAMAGER"
+        end
+        UnitHealth = function()
+            return 75
+        end
+        UnitHealthMax = function()
+            return 100
+        end
+        UnitThreatSituation = function()
+            return nil
+        end
+        UnitReaction = function()
+            return 2
+        end
+        UnitIsTapDenied = function(unit)
+            return unit == "nameplate1"
+        end
+        UnitHealthPercent = nil
+        AbbreviateNumbers = function(value)
+            return tostring(value)
+        end
+
+        -- When
+        runtime:UpdateHealth("nameplate1", true, false)
+
+        -- Then
+        ExpectEqual(receivedTapDenied, true)
+        ExpectEqual(appliedColor[1], tapDeniedColor[1])
+        ExpectEqual(appliedColor[2], tapDeniedColor[2])
+        ExpectEqual(appliedColor[3], tapDeniedColor[3])
+        ExpectEqual(appliedColor[4], tapDeniedColor[4])
+
+        UnitHealth = previousGlobals.UnitHealth
+        UnitHealthMax = previousGlobals.UnitHealthMax
+        UnitThreatSituation = previousGlobals.UnitThreatSituation
+        UnitReaction = previousGlobals.UnitReaction
+        UnitIsTapDenied = previousGlobals.UnitIsTapDenied
+        UnitHealthPercent = previousGlobals.UnitHealthPercent
+        AbbreviateNumbers = previousGlobals.AbbreviateNumbers
+    end)
+
     It("updates a single HP text layer", function()
         -- Given
         local primaryText

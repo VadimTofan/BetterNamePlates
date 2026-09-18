@@ -28,8 +28,13 @@ function Appearance:GetHealthColorKey(
     classification,
     isKnownCaster,
     threatState,
-    isIdleNeutral
+    isIdleNeutral,
+    isTapDenied
 )
+    if isTapDenied then
+        return "tapDenied"
+    end
+
     if isIdleNeutral then
         return "neutral"
     end
